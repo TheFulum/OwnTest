@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">OwnTest</string>
+
+    <!-- Auth Screens -->
+    <string name="registration">Регистрация</string>
+    <string name="login">Войти</string>
+    <string name="welcome_back">С возвращением!</string>
+    <string name="login_to_continue">Войдите, чтобы продолжить</string>
+    <string name="forgot_password">Забыли пароль?</string>
+    <string name="reset_password">Восстановить пароль</string>
+    <string name="reset_password_description">Введите ваш email и мы отправим вам ссылку для восстановления пароля</string>
+    <string name="send_reset_link">Отправить ссылку</string>
+
+    <!-- Form Fields -->
+    <string name="email">Почта</string>
+    <string name="nickname">Никнейм</string>
+    <string name="name">Имя</string>
+    <string name="password">Пароль</string>
+    <string name="confirm_password">Подтвердите пароль</string>
+
+    <!-- Buttons -->
+    <string name="register">Зарегистрироваться</string>
+    <string name="already_have_account">Уже есть аккаунт?</string>
+    <string name="dont_have_account">Нет аккаунта?</string>
+    <string name="back">Назад</string>
+
+    <!-- Descriptions -->
+    <string name="app_logo">Логотип приложения</string>
+
+    <!-- Navigation -->
+    <string name="navigation_drawer_open">Открыть меню</string>
+    <string name="navigation_drawer_close">Закрыть меню</string>
+    <string name="home">Главная</string>
+    <string name="profile">Профиль</string>
+    <string name="create_test">Создать тест</string>
+    <string name="account">Аккаунт</string>
+    <string name="logout">Выйти</string>
+
+    <!-- Profile -->
+    <string name="user_avatar">Аватар пользователя</string>
+    <string name="change_avatar">Изменить фото</string>
+    <string name="days_in_app">Дней в приложении</string>
+    <string name="save_changes">Сохранить изменения</string>
+    <string name="loading">Загрузка…</string>
+
+    <!-- Screens -->
+    <string name="home_screen">Главный экран</string>
+    <string name="create_test_screen">Создание теста</string>
+</resources>

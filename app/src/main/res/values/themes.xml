@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- Base application theme -->
+    <style name="Base.Theme.Questify" parent="Theme.Material3.Light.NoActionBar">
+
+        <!-- Primary colors -->
+        <item name="colorPrimary">@color/primary</item>
+        <item name="colorOnPrimary">@color/white</item>
+
+        <!-- Secondary colors -->
+        <item name="colorSecondary">@color/primary_light</item>
+        <item name="colorOnSecondary">@color/white</item>
+
+        <!-- System UI -->
+        <item name="android:statusBarColor">@color/white</item>
+        <item name="android:windowLightStatusBar">true</item>
+
+        <item name="android:navigationBarColor">@color/white</item>
+
+        <!-- Background -->
+        <item name="android:windowBackground">@color/background</item>
+
+    </style>
+
+    <style name="Theme.Questify" parent="Base.Theme.Questify" />
+
+</resources>
