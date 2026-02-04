@@ -1,6 +1,8 @@
 package com.example.owntest.fragments;
 
+import android.app.Activity;
 import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -9,6 +11,8 @@ import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
@@ -19,6 +23,7 @@ import com.bumptech.glide.Glide;
 import com.example.owntest.R;
 import com.example.owntest.activities.LoginActivity;
 import com.example.owntest.adapters.TestAdapter;
+import com.example.owntest.managers.CloudinaryManager;
 import com.example.owntest.managers.FirebaseManager;
 import com.example.owntest.models.Test;
 import com.example.owntest.models.User;
@@ -40,9 +45,13 @@ public class ProfileFragment extends Fragment {
 
     private TestAdapter adapter;
     private FirebaseManager firebaseManager;
+    private CloudinaryManager cloudinaryManager;
     private User currentUser;
 
     private int currentTab = 0; // 0 = мои тесты, 1 = пройденные
+
+    private Uri selectedAvatarUri;
+    private ActivityResultLauncher<Intent> avatarPickerLauncher;
 
     @Nullable
     @Override
@@ -51,7 +60,9 @@ public class ProfileFragment extends Fragment {
 
         initViews(view);
         firebaseManager = FirebaseManager.getInstance();
+        cloudinaryManager = CloudinaryManager.getInstance();
 
+        setupAvatarPicker();
         loadUserData();
         setupRecyclerView();
         setupListeners();
@@ -70,6 +81,28 @@ public class ProfileFragment extends Fragment {
         tabLayout = view.findViewById(R.id.tabLayout);
         rvTests = view.findViewById(R.id.rvTests);
         layoutEmpty = view.findViewById(R.id.layoutEmpty);
+    }
+
+    private void setupAvatarPicker() {
+        avatarPickerLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                result -> {
+                    if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null) {
+                        selectedAvatarUri = result.getData().getData();
+                        if (selectedAvatarUri != null) {
+                            // Сразу показываем выбранное изображение
+                            Glide.with(this)
+                                    .load(selectedAvatarUri)
+                                    .placeholder(R.drawable.ic_default_avatar)
+                                    .circleCrop()
+                                    .into(ivAvatar);
+
+                            // Загружаем в Cloudinary
+                            uploadAvatar();
+                        }
+                    }
+                }
+        );
     }
 
     private void setupRecyclerView() {
@@ -135,10 +168,7 @@ public class ProfileFragment extends Fragment {
     }
 
     private void setupListeners() {
-        ivAvatar.setOnClickListener(v -> {
-            // TODO: Добавить выбор аватара
-            Toast.makeText(getContext(), "Загрузка аватара будет добавлена", Toast.LENGTH_SHORT).show();
-        });
+        ivAvatar.setOnClickListener(v -> openAvatarPicker());
 
         btnSave.setOnClickListener(v -> saveProfile());
         btnLogout.setOnClickListener(v -> logout());
@@ -156,6 +186,67 @@ public class ProfileFragment extends Fragment {
             @Override
             public void onTabReselected(TabLayout.Tab tab) {}
         });
+    }
+
+    private void openAvatarPicker() {
+        Intent intent = new Intent(Intent.ACTION_PICK);
+        intent.setType("image/*");
+        avatarPickerLauncher.launch(intent);
+    }
+
+    private void uploadAvatar() {
+        if (selectedAvatarUri == null || currentUser == null) return;
+
+        btnSave.setEnabled(false);
+        btnSave.setText("Загрузка аватара...");
+
+        String userId = firebaseManager.getCurrentUser().getUid();
+
+        cloudinaryManager.uploadAvatar(selectedAvatarUri, userId,
+                new CloudinaryManager.UploadCallback() {
+                    @Override
+                    public void onSuccess(String imageUrl) {
+                        if (getContext() == null) return;
+
+                        // Обновляем URL аватара в объекте пользователя
+                        currentUser.setAvatarUrl(imageUrl);
+
+                        // Сохраняем в Firebase
+                        firebaseManager.updateUserProfile(currentUser, new FirebaseManager.AuthCallback() {
+                            @Override
+                            public void onSuccess(String message) {
+                                if (getContext() == null) return;
+
+                                Toast.makeText(getContext(), "Аватар обновлён!", Toast.LENGTH_SHORT).show();
+                                btnSave.setEnabled(true);
+                                btnSave.setText("Сохранить");
+
+                                // Обновляем header в MainActivity
+                                if (getActivity() instanceof com.example.owntest.activities.MainActivity) {
+                                    ((com.example.owntest.activities.MainActivity) getActivity()).refreshUserHeader();
+                                }
+                            }
+
+                            @Override
+                            public void onFailure(String error) {
+                                if (getContext() == null) return;
+
+                                Toast.makeText(getContext(), "Ошибка сохранения: " + error, Toast.LENGTH_SHORT).show();
+                                btnSave.setEnabled(true);
+                                btnSave.setText("Сохранить");
+                            }
+                        });
+                    }
+
+                    @Override
+                    public void onFailure(String error) {
+                        if (getContext() == null) return;
+
+                        Toast.makeText(getContext(), "Ошибка загрузки: " + error, Toast.LENGTH_SHORT).show();
+                        btnSave.setEnabled(true);
+                        btnSave.setText("Сохранить");
+                    }
+                });
     }
 
     private void loadTests() {
