@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "400667409419",
+    "firebase_url": "https://owntest-c4d5f-default-rtdb.europe-west1.firebasedatabase.app",
+    "project_id": "owntest-c4d5f",
+    "storage_bucket": "owntest-c4d5f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:400667409419:android:50946213f23b8d5b409b0e",
+        "android_client_info": {
+          "package_name": "com.example.owntest"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC_IclKsH8N-i8LLoRj4LKTIwgvHTk2ylg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
