@@ -4,6 +4,7 @@ import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.RadioButton;
@@ -14,34 +15,38 @@ import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
 import androidx.fragment.app.Fragment;
 
 import com.example.owntest.R;
 import com.example.owntest.managers.FirebaseManager;
-import com.example.owntest.models.Answer;
+import com.example.owntest.models.Notification;
 import com.example.owntest.models.Question;
 import com.example.owntest.models.Test;
 import com.example.owntest.models.TestCompletion;
+import com.example.owntest.models.User;
 import com.google.android.material.button.MaterialButton;
+import com.google.android.material.textfield.TextInputEditText;
 
 import java.util.HashMap;
 import java.util.Map;
 
 public class TakeTestFragment extends Fragment {
 
-    private TextView tvTestTitle, tvProgress, tvQuestionText, tvQuestionDescription;
-    private RadioGroup rgAnswers;
+    private TextView tvProgress, tvQuestionText, tvQuestionDescription;
+    private LinearLayout answerContainer;
     private MaterialButton btnNext, btnPrevious;
     private ProgressBar progressBar;
-    private LinearLayout questionContainer;
 
     private Test test;
     private int currentQuestionIndex = 0;
-    private Map<String, Integer> userAnswers;
-    private FirebaseManager firebaseManager;
+    private Map<String, Integer> userChoiceAnswers = new HashMap<>(); // для choice
+    private Map<String, String> userTextAnswers = new HashMap<>(); // для text
 
-    private TestCompletion existingCompletion; // Если есть незавершенное прохождение
-    private String completionId;
+    private RadioGroup currentRadioGroup;
+    private TextInputEditText currentTextInput;
+
+    private FirebaseManager firebaseManager;
 
     public static TakeTestFragment newInstance(String testId) {
         TakeTestFragment fragment = new TakeTestFragment();
@@ -58,7 +63,6 @@ public class TakeTestFragment extends Fragment {
 
         initViews(view);
         firebaseManager = FirebaseManager.getInstance();
-        userAnswers = new HashMap<>();
 
         String testId = getArguments() != null ? getArguments().getString("testId") : null;
         if (testId != null) {
@@ -71,74 +75,30 @@ public class TakeTestFragment extends Fragment {
     }
 
     private void initViews(View view) {
-        tvTestTitle = view.findViewById(R.id.tvTestTitle);
         tvProgress = view.findViewById(R.id.tvProgress);
         tvQuestionText = view.findViewById(R.id.tvQuestionText);
         tvQuestionDescription = view.findViewById(R.id.tvQuestionDescription);
-        rgAnswers = view.findViewById(R.id.rgAnswers);
+        answerContainer = view.findViewById(R.id.answerContainer);
         btnNext = view.findViewById(R.id.btnNext);
         btnPrevious = view.findViewById(R.id.btnPrevious);
         progressBar = view.findViewById(R.id.progressBar);
-        questionContainer = view.findViewById(R.id.questionContainer);
     }
 
     private void loadTest(String testId) {
         progressBar.setVisibility(View.VISIBLE);
-        questionContainer.setVisibility(View.GONE);
 
         firebaseManager.getTestById(testId, new FirebaseManager.TestCallback() {
             @Override
             public void onSuccess(Test loadedTest) {
-                if (getContext() == null) return;
-
                 test = loadedTest;
-                tvTestTitle.setText(test.getTitle());
-
-                // Проверяем есть ли незавершенное прохождение
-                checkExistingProgress();
+                progressBar.setVisibility(View.GONE);
+                displayQuestion();
             }
 
             @Override
             public void onFailure(String error) {
-                if (getContext() == null) return;
-
                 progressBar.setVisibility(View.GONE);
-                Toast.makeText(getContext(), "Ошибка загрузки теста: " + error, Toast.LENGTH_LONG).show();
-                requireActivity().getSupportFragmentManager().popBackStack();
-            }
-        });
-    }
-
-    private void checkExistingProgress() {
-        String userId = firebaseManager.getCurrentUser().getUid();
-
-        firebaseManager.getTestCompletion(userId, test.getTestId(), new FirebaseManager.CompletionCallback() {
-            @Override
-            public void onSuccess(TestCompletion completion) {
-                if (getContext() == null) return;
-
-                // Если тест не завершен - восстанавливаем прогресс
-                if (!completion.isCompleted()) {
-                    existingCompletion = completion;
-                    completionId = completion.getCompletionId();
-                    currentQuestionIndex = completion.getCurrentQuestionIndex();
-                    userAnswers = completion.getUserAnswers() != null ?
-                            new HashMap<>(completion.getUserAnswers()) : new HashMap<>();
-
-                    Toast.makeText(getContext(), "Восстановлен прогресс", Toast.LENGTH_SHORT).show();
-                }
-
-                progressBar.setVisibility(View.GONE);
-                questionContainer.setVisibility(View.VISIBLE);
-                updateQuestionUI();
-            }
-
-            @Override
-            public void onFailure(String error) {
-                // Нет прохождения - начинаем с начала
-                progressBar.setVisibility(View.GONE);
-                questionContainer.setVisibility(View.VISIBLE);
-                updateQuestionUI();
+                Toast.makeText(getContext(), "Ошибка загрузки: " + error, Toast.LENGTH_SHORT).show();
             }
         });
     }
@@ -146,12 +106,11 @@ public class TakeTestFragment extends Fragment {
     private void setupListeners() {
         btnNext.setOnClickListener(v -> {
             if (saveCurrentAnswer()) {
-                if (currentQuestionIndex < test.getQuestions().size() - 1) {
-                    currentQuestionIndex++;
-                    saveProgress(); // Сохраняем прогресс при переходе
-                    updateQuestionUI();
-                } else {
+                if (currentQuestionIndex == test.getQuestions().size() - 1) {
                     finishTest();
+                } else {
+                    currentQuestionIndex++;
+                    displayQuestion();
                 }
             }
         });
@@ -159,21 +118,22 @@ public class TakeTestFragment extends Fragment {
         btnPrevious.setOnClickListener(v -> {
             saveCurrentAnswer();
             currentQuestionIndex--;
-            saveProgress(); // Сохраняем прогресс
-            updateQuestionUI();
+            displayQuestion();
         });
     }
 
-    private void updateQuestionUI() {
-        if (test == null || test.getQuestions() == null || test.getQuestions().isEmpty()) {
-            return;
-        }
+    private void displayQuestion() {
+        if (test == null || test.getQuestions().isEmpty()) return;
 
         Question question = test.getQuestions().get(currentQuestionIndex);
 
+        // Progress
         tvProgress.setText("Вопрос " + (currentQuestionIndex + 1) + " из " + test.getQuestions().size());
+
+        // Текст вопроса
         tvQuestionText.setText(question.getQuestionText());
 
+        // Описание (если есть)
         if (question.getQuestionDescription() != null && !question.getQuestionDescription().isEmpty()) {
             tvQuestionDescription.setVisibility(View.VISIBLE);
             tvQuestionDescription.setText(question.getQuestionDescription());
@@ -181,158 +141,254 @@ public class TakeTestFragment extends Fragment {
             tvQuestionDescription.setVisibility(View.GONE);
         }
 
-        rgAnswers.removeAllViews();
-        if (question.getAnswers() != null) {
-            for (int i = 0; i < question.getAnswers().size(); i++) {
-                Answer answer = question.getAnswers().get(i);
-                RadioButton radioButton = new RadioButton(getContext());
-                radioButton.setText(answer.getAnswerText());
-                radioButton.setId(i);
-                radioButton.setTextSize(16);
-                radioButton.setPadding(16, 16, 16, 16);
+        // Очищаем контейнер ответов
+        answerContainer.removeAllViews();
 
-                rgAnswers.addView(radioButton);
-            }
+        // Рендерим в зависимости от типа вопроса
+        if (question.isTextQuestion()) {
+            renderTextInput(question);
+        } else {
+            renderChoiceInput(question);
         }
 
-        Integer savedAnswer = userAnswers.get(question.getQuestionId());
-        if (savedAnswer != null && savedAnswer < rgAnswers.getChildCount()) {
-            ((RadioButton) rgAnswers.getChildAt(savedAnswer)).setChecked(true);
-        }
-
+        // Кнопки
         btnPrevious.setVisibility(currentQuestionIndex > 0 ? View.VISIBLE : View.GONE);
-        btnNext.setText(currentQuestionIndex == test.getQuestions().size() - 1 ? "Завершить тест" : "Далее");
+        btnNext.setText(currentQuestionIndex == test.getQuestions().size() - 1 ? "Завершить" : "Далее");
+    }
+
+    private void renderChoiceInput(Question question) {
+        currentTextInput = null;
+        currentRadioGroup = new RadioGroup(getContext());
+        currentRadioGroup.setOrientation(RadioGroup.VERTICAL);
+
+        for (int i = 0; i < question.getAnswers().size(); i++) {
+            RadioButton radioButton = new RadioButton(getContext());
+            radioButton.setText(question.getAnswers().get(i).getAnswerText());
+            radioButton.setId(i);
+            radioButton.setPadding(16, 24, 16, 24);
+            radioButton.setTextSize(16);
+            currentRadioGroup.addView(radioButton);
+        }
+
+        // Восстанавливаем предыдущий ответ если есть
+        Integer previousAnswer = userChoiceAnswers.get(question.getQuestionId());
+        if (previousAnswer != null) {
+            currentRadioGroup.check(previousAnswer);
+        }
+
+        answerContainer.addView(currentRadioGroup);
+    }
+
+    private void renderTextInput(Question question) {
+        currentRadioGroup = null;
+
+        View textInputView = LayoutInflater.from(getContext())
+                .inflate(R.layout.item_text_answer_input, answerContainer, false);
+
+        currentTextInput = textInputView.findViewById(R.id.etTextAnswer);
+
+        // Показываем подсказку о баллах если ручная проверка
+        TextView tvHint = textInputView.findViewById(R.id.tvHint);
+        if (test.isManualCheck()) {
+            tvHint.setVisibility(View.VISIBLE);
+            tvHint.setText("Максимум баллов: " + question.getMaxPoints());
+        } else {
+            tvHint.setVisibility(View.GONE);
+        }
+
+        // Восстанавливаем предыдущий ответ если есть
+        String previousAnswer = userTextAnswers.get(question.getQuestionId());
+        if (previousAnswer != null) {
+            currentTextInput.setText(previousAnswer);
+        }
+
+        answerContainer.addView(textInputView);
     }
 
     private boolean saveCurrentAnswer() {
-        int selectedId = rgAnswers.getCheckedRadioButtonId();
+        Question question = test.getQuestions().get(currentQuestionIndex);
 
-        if (selectedId == -1) {
-            Toast.makeText(getContext(), "Выберите ответ", Toast.LENGTH_SHORT).show();
-            return false;
+        if (question.isTextQuestion()) {
+            // Сохраняем текстовый ответ
+            if (currentTextInput != null) {
+                String text = currentTextInput.getText().toString().trim();
+                if (text.isEmpty()) {
+                    Toast.makeText(getContext(), "Введите ответ", Toast.LENGTH_SHORT).show();
+                    return false;
+                }
+                userTextAnswers.put(question.getQuestionId(), text);
+            }
+        } else {
+            // Сохраняем выбор
+            if (currentRadioGroup != null) {
+                int selectedId = currentRadioGroup.getCheckedRadioButtonId();
+                if (selectedId == -1) {
+                    Toast.makeText(getContext(), "Выберите ответ", Toast.LENGTH_SHORT).show();
+                    return false;
+                }
+                userChoiceAnswers.put(question.getQuestionId(), selectedId);
+            }
         }
-
-        Question currentQuestion = test.getQuestions().get(currentQuestionIndex);
-        userAnswers.put(currentQuestion.getQuestionId(), selectedId);
 
         return true;
     }
 
-    // Автосохранение прогресса
-    private void saveProgress() {
-        String userId = firebaseManager.getCurrentUser().getUid();
+    private void finishTest() {
+        if (!saveCurrentAnswer()) return;
 
-        TestCompletion progress = new TestCompletion();
-        progress.setCompletionId(completionId != null ? completionId :
-                firebaseManager.getDatabase().child("completions").push().getKey());
-        progress.setUserId(userId);
-        progress.setTestId(test.getTestId());
-        progress.setUserAnswers(userAnswers);
-        progress.setCurrentQuestionIndex(currentQuestionIndex);
-        progress.setCompleted(false); // Не завершен
-        progress.setTotalQuestions(test.getQuestions().size());
-        progress.setLastUpdated(System.currentTimeMillis());
+        // Подсчитываем результат
+        int score = 0;
+        int totalQuestions = test.getQuestions().size();
+        int maxPoints = 0;
 
-        completionId = progress.getCompletionId();
+        for (Question question : test.getQuestions()) {
+            if (question.isChoiceQuestion()) {
+                Integer userAnswer = userChoiceAnswers.get(question.getQuestionId());
+                if (userAnswer != null && question.isCorrectAnswer(userAnswer)) {
+                    score++;
+                }
+            }
+            maxPoints += question.getMaxPoints();
+        }
 
-        firebaseManager.saveTestProgress(progress, new FirebaseManager.AuthCallback() {
+        // Определяем статус проверки
+        String checkStatus;
+        if (test.isManualCheck()) {
+            checkStatus = "PENDING"; // Ожидает проверки
+        } else {
+            checkStatus = "AUTO"; // Автопроверка
+        }
+
+        // Создаем TestCompletion
+        TestCompletion completion = new TestCompletion(
+                null,
+                firebaseManager.getCurrentUser().getUid(),
+                test.getTestId(),
+                score,
+                totalQuestions,
+                userChoiceAnswers,
+                userTextAnswers,
+                checkStatus,
+                maxPoints
+        );
+
+        // Сохраняем
+        progressBar.setVisibility(View.VISIBLE);
+        btnNext.setEnabled(false);
+
+        int finalScore = score;
+        firebaseManager.saveTestCompletion(completion, new FirebaseManager.AuthCallback() {
             @Override
-            public void onSuccess(String id) {
-                // Прогресс сохранен
+            public void onSuccess(String completionId) {
+                progressBar.setVisibility(View.GONE);
+
+                if (test.isManualCheck()) {
+                    // Создаем уведомление создателю
+                    createNotificationForCreator(completionId);
+                    showManualCheckResult();
+                } else {
+                    // Показываем диалог с рейтингом
+                    showRatingDialog(finalScore, totalQuestions);
+                }
             }
 
             @Override
             public void onFailure(String error) {
-                // Игнорируем ошибки автосохранения
+                progressBar.setVisibility(View.GONE);
+                btnNext.setEnabled(true);
+                Toast.makeText(getContext(), "Ошибка: " + error, Toast.LENGTH_SHORT).show();
             }
         });
     }
 
-    private void finishTest() {
-        progressBar.setVisibility(View.VISIBLE);
-        btnNext.setEnabled(false);
-        btnPrevious.setEnabled(false);
+    private void createNotificationForCreator(String completionId) {
+        String currentUid = firebaseManager.getCurrentUser().getUid();
 
-        // Подсчитываем результат
-        int correctAnswers = 0;
-        for (int i = 0; i < test.getQuestions().size(); i++) {
-            Question question = test.getQuestions().get(i);
-            Integer userAnswer = userAnswers.get(question.getQuestionId());
+        firebaseManager.getUserData(currentUid, new FirebaseManager.UserCallback() {
+            @Override
+            public void onSuccess(User user) {
+                Notification notification = new Notification(
+                        null,
+                        test.getCreatorId(), // Кому
+                        "TEST_COMPLETED",
+                        test.getTestId(),
+                        test.getTitle(),
+                        completionId,
+                        user.getName() // Кто прошел
+                );
 
-            if (userAnswer != null && userAnswer == question.getCorrectAnswerIndex()) {
-                correctAnswers++;
+                firebaseManager.createNotification(notification, new FirebaseManager.AuthCallback() {
+                    @Override
+                    public void onSuccess(String userId) {
+                        // Уведомление создано
+                    }
+
+                    @Override
+                    public void onFailure(String error) {
+                        // Игнорируем ошибку
+                    }
+                });
             }
-        }
 
-        int finalCorrectAnswers = correctAnswers;
-
-        // Показываем диалог для выбора рейтинга
-        showRatingDialog(finalCorrectAnswers);
+            @Override
+            public void onFailure(String error) {
+                // Игнорируем
+            }
+        });
     }
 
-    private void showRatingDialog(int correctAnswers) {
-        View dialogView = LayoutInflater.from(getContext()).inflate(R.layout.dialog_test_rating, null);
-
-        TextView tvResult = dialogView.findViewById(R.id.tvResult);
-        RatingBar ratingBar = dialogView.findViewById(R.id.ratingBar);
-
-        double percentage = (double) correctAnswers / test.getQuestions().size() * 100;
-        tvResult.setText(String.format(
-                "Правильных ответов: %d из %d\nРезультат: %.1f%%\n\nОцените тест:",
-                correctAnswers, test.getQuestions().size(), percentage
-        ));
-
-        new androidx.appcompat.app.AlertDialog.Builder(requireContext())
-                .setTitle("Тест завершен!")
-                .setView(dialogView)
-                .setPositiveButton("Сохранить", (dialog, which) -> {
-                    int rating = (int) ratingBar.getRating();
-                    if (rating == 0) {
-                        Toast.makeText(getContext(), "Поставьте оценку", Toast.LENGTH_SHORT).show();
-                        showRatingDialog(correctAnswers); // Показываем снова
-                        return;
-                    }
-                    saveCompletedTest(correctAnswers, rating);
+    private void showManualCheckResult() {
+        new AlertDialog.Builder(requireContext())
+                .setTitle("Тест отправлен на проверку")
+                .setMessage("Создатель теста проверит ваши ответы и выставит баллы. Вы получите уведомление когда проверка будет завершена.")
+                .setPositiveButton("OK", (dialog, which) -> {
+                    // Возвращаемся назад
+                    requireActivity().getSupportFragmentManager().popBackStack();
                 })
                 .setCancelable(false)
                 .show();
     }
 
-    private void saveCompletedTest(int correctAnswers, int rating) {
-        String userId = firebaseManager.getCurrentUser().getUid();
+    private void showRatingDialog(int score, int totalQuestions) {
+        View dialogView = LayoutInflater.from(getContext())
+                .inflate(R.layout.dialog_test_rating, null);
 
-        TestCompletion completion = new TestCompletion(
-                completionId != null ? completionId : null,
-                userId,
-                test.getTestId(),
-                correctAnswers,
-                test.getQuestions().size(),
-                userAnswers
-        );
+        TextView tvResult = dialogView.findViewById(R.id.tvResult);
+        RatingBar ratingBar = dialogView.findViewById(R.id.ratingBar);
 
-        completion.setCompleted(true);
-        completion.setUserRating(rating);
-        completion.setCompletedDate(System.currentTimeMillis());
+        double percentage = (double) score / totalQuestions * 100;
+        tvResult.setText(String.format("Вы набрали %d из %d (%.1f%%)\n\nОцените тест:",
+                score, totalQuestions, percentage));
 
-        firebaseManager.saveTestCompletion(completion, new FirebaseManager.AuthCallback() {
-            @Override
-            public void onSuccess(String id) {
-                if (getContext() == null) return;
+        AlertDialog dialog = new AlertDialog.Builder(requireContext())
+                .setView(dialogView)
+                .setPositiveButton("Отправить", null)
+                .setCancelable(false)
+                .create();
 
-                progressBar.setVisibility(View.GONE);
-                Toast.makeText(getContext(), "Результат сохранен!", Toast.LENGTH_SHORT).show();
+        dialog.setOnShowListener(d -> {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+                float rating = ratingBar.getRating();
+                if (rating == 0) {
+                    Toast.makeText(getContext(), "Поставьте оценку", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                saveRating(rating);
+                dialog.dismiss();
                 requireActivity().getSupportFragmentManager().popBackStack();
-            }
-
-            @Override
-            public void onFailure(String error) {
-                if (getContext() == null) return;
-
-                progressBar.setVisibility(View.GONE);
-                btnNext.setEnabled(true);
-                btnPrevious.setEnabled(true);
-                Toast.makeText(getContext(), "Ошибка сохранения: " + error, Toast.LENGTH_LONG).show();
-            }
+            });
         });
+
+        dialog.show();
+    }
+
+    private void saveRating(double rating) {
+        // Обновляем рейтинг теста
+        test.addCompletion(rating);
+
+        firebaseManager.getDatabase()
+                .child("tests")
+                .child(test.getTestId())
+                .setValue(test);
     }
 }

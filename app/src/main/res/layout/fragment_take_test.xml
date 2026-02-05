@@ -1,41 +1,42 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:fillViewport="true"
-    android:background="#F5F5F5">
+    android:orientation="vertical"
+    android:background="@color/background">
 
-    <LinearLayout
+    <!-- Progress -->
+    <TextView
+        android:id="@+id/tvProgress"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="16dp">
+        android:text="Вопрос 1 из 10"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:textColor="@color/primary"
+        android:padding="16dp"
+        android:gravity="center"/>
 
-        <!-- Загрузка -->
-        <ProgressBar
-            android:id="@+id/progressBar"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            android:layout_marginTop="100dp"
-            android:visibility="gone"/>
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true">
 
-        <!-- Контейнер вопроса -->
         <LinearLayout
-            android:id="@+id/questionContainer"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:visibility="visible">
+            android:padding="24dp">
 
-            <!-- Заголовок теста -->
+            <!-- Текст вопроса -->
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="16dp"
-                app:cardElevation="4dp"
-                app:cardCornerRadius="12dp">
+                app:cardCornerRadius="12dp"
+                app:cardElevation="2dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -44,111 +45,73 @@
                     android:padding="16dp">
 
                     <TextView
-                        android:id="@+id/tvTestTitle"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Название теста"
-                        android:textSize="20sp"
-                        android:textStyle="bold"
-                        android:textColor="@android:color/black"/>
-
-                    <TextView
-                        android:id="@+id/tvProgress"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Вопрос 1 из 10"
-                        android:textSize="14sp"
-                        android:textColor="@android:color/darker_gray"
-                        android:layout_marginTop="4dp"/>
-
-                </LinearLayout>
-
-            </com.google.android.material.card.MaterialCardView>
-
-            <!-- Карточка вопроса -->
-            <com.google.android.material.card.MaterialCardView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="16dp"
-                app:cardElevation="4dp"
-                app:cardCornerRadius="12dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="20dp">
-
-                    <TextView
                         android:id="@+id/tvQuestionText"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="Текст вопроса"
+                        android:text="Вопрос"
                         android:textSize="18sp"
                         android:textStyle="bold"
-                        android:textColor="@android:color/black"/>
+                        android:textColor="@color/text_primary"/>
 
                     <TextView
                         android:id="@+id/tvQuestionDescription"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="Описание вопроса"
-                        android:textSize="14sp"
-                        android:textColor="@android:color/darker_gray"
                         android:layout_marginTop="8dp"
+                        android:text="Описание"
+                        android:textSize="14sp"
+                        android:textColor="@color/text_secondary"
                         android:visibility="gone"/>
-
-                    <View
-                        android:layout_width="match_parent"
-                        android:layout_height="1dp"
-                        android:background="#E0E0E0"
-                        android:layout_marginTop="16dp"
-                        android:layout_marginBottom="16dp"/>
-
-                    <!-- Варианты ответов -->
-                    <RadioGroup
-                        android:id="@+id/rgAnswers"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical">
-                        <!-- RadioButton будут добавлены программно -->
-                    </RadioGroup>
 
                 </LinearLayout>
 
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- Кнопки навигации -->
+            <!-- Контейнер для ответов -->
             <LinearLayout
+                android:id="@+id/answerContainer"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center"
-                android:layout_marginTop="8dp">
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnPrevious"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="Назад"
-                    android:layout_marginEnd="8dp"
-                    android:visibility="gone"
-                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"/>
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnNext"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="Далее"
-                    android:layout_marginStart="8dp"
-                    app:backgroundTint="@color/primary"/>
-
-            </LinearLayout>
+                android:orientation="vertical"/>
 
         </LinearLayout>
 
+    </ScrollView>
+
+    <!-- Navigation buttons -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:padding="16dp"
+        android:gravity="center">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnPrevious"
+            android:layout_width="0dp"
+            android:layout_height="56dp"
+            android:layout_weight="1"
+            android:text="Назад"
+            android:layout_marginEnd="8dp"
+            app:cornerRadius="12dp"
+            style="@style/Widget.Material3.Button.OutlinedButton"/>
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnNext"
+            android:layout_width="0dp"
+            android:layout_height="56dp"
+            android:layout_weight="1"
+            android:text="Далее"
+            android:layout_marginStart="8dp"
+            app:cornerRadius="12dp"/>
+
     </LinearLayout>
 
-</ScrollView>
+    <ProgressBar
+        android:id="@+id/progressBar"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:visibility="gone"/>
+
+</LinearLayout>

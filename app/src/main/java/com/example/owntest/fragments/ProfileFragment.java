@@ -22,15 +22,20 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.bumptech.glide.Glide;
 import com.example.owntest.R;
 import com.example.owntest.activities.LoginActivity;
+import com.example.owntest.adapters.CompletedTestAdapter;
 import com.example.owntest.adapters.TestAdapter;
 import com.example.owntest.managers.CloudinaryManager;
 import com.example.owntest.managers.FirebaseManager;
 import com.example.owntest.models.Test;
+import com.example.owntest.models.TestCompletion;
+import com.example.owntest.models.TestWithCompletion;
 import com.example.owntest.models.User;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.tabs.TabLayout;
 import com.google.android.material.textfield.TextInputEditText;
+import com.google.firebase.auth.FirebaseUser;
 
+import java.util.Collections;
 import java.util.List;
 
 public class ProfileFragment extends Fragment {
@@ -39,16 +44,19 @@ public class ProfileFragment extends Fragment {
     private TextInputEditText etNickname, etName, etEmail;
     private TextView tvDaysInApp;
     private MaterialButton btnSave, btnLogout;
+    private View btnNotifications;
+    private TextView tvNotificationBadge;
     private TabLayout tabLayout;
     private RecyclerView rvTests;
     private View layoutEmpty;
 
-    private TestAdapter adapter;
     private FirebaseManager firebaseManager;
     private CloudinaryManager cloudinaryManager;
     private User currentUser;
 
-    private int currentTab = 0; // 0 = мои тесты, 1 = пройденные
+    private int currentTab = 0;
+    private TestAdapter createdTestsAdapter;
+    private CompletedTestAdapter completedTestsAdapter;
 
     private Uri selectedAvatarUri;
     private ActivityResultLauncher<Intent> avatarPickerLauncher;
@@ -66,6 +74,7 @@ public class ProfileFragment extends Fragment {
         loadUserData();
         setupRecyclerView();
         setupListeners();
+        loadUnreadCount();
 
         return view;
     }
@@ -81,6 +90,8 @@ public class ProfileFragment extends Fragment {
         tabLayout = view.findViewById(R.id.tabLayout);
         rvTests = view.findViewById(R.id.rvTests);
         layoutEmpty = view.findViewById(R.id.layoutEmpty);
+        btnNotifications = view.findViewById(R.id.btnNotifications);
+        tvNotificationBadge = view.findViewById(R.id.tvNotificationBadge);
     }
 
     private void setupAvatarPicker() {
@@ -90,14 +101,12 @@ public class ProfileFragment extends Fragment {
                     if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null) {
                         selectedAvatarUri = result.getData().getData();
                         if (selectedAvatarUri != null) {
-                            // Сразу показываем выбранное изображение
                             Glide.with(this)
                                     .load(selectedAvatarUri)
                                     .placeholder(R.drawable.ic_default_avatar)
                                     .circleCrop()
                                     .into(ivAvatar);
 
-                            // Загружаем в Cloudinary
                             uploadAvatar();
                         }
                     }
@@ -106,8 +115,10 @@ public class ProfileFragment extends Fragment {
     }
 
     private void setupRecyclerView() {
-        // Создаем адаптер с поддержкой редактирования/удаления для вкладки "Мои тесты"
-        adapter = new TestAdapter(new TestAdapter.OnTestClickListener() {
+        rvTests.setLayoutManager(new GridLayoutManager(getContext(), 2));
+
+        // Адаптер для созданных тестов
+        createdTestsAdapter = new TestAdapter(new TestAdapter.OnTestClickListener() {
             @Override
             public void onTestClick(Test test) {
                 openTestDetails(test);
@@ -122,15 +133,19 @@ public class ProfileFragment extends Fragment {
             public void onDeleteClick(Test test) {
                 deleteTest(test);
             }
-        }, true); // true = показывать опции создателя
+        }, true);
 
-        GridLayoutManager layoutManager = new GridLayoutManager(getContext(), 2);
-        rvTests.setLayoutManager(layoutManager);
-        rvTests.setAdapter(adapter);
+        // Адаптер для пройденных тестов
+        completedTestsAdapter = new CompletedTestAdapter((test, completion) -> {
+            openCompletedTestDetails(test, completion);
+        });
     }
 
     private void loadUserData() {
-        String uid = firebaseManager.getCurrentUser().getUid();
+        FirebaseUser user = firebaseManager.getCurrentUser();
+        if (user == null) return;
+
+        String uid = user.getUid();
 
         firebaseManager.getUserData(uid, new FirebaseManager.UserCallback() {
             @Override
@@ -169,9 +184,9 @@ public class ProfileFragment extends Fragment {
 
     private void setupListeners() {
         ivAvatar.setOnClickListener(v -> openAvatarPicker());
-
         btnSave.setOnClickListener(v -> saveProfile());
         btnLogout.setOnClickListener(v -> logout());
+        btnNotifications.setOnClickListener(v -> openNotifications());
 
         tabLayout.addOnTabSelectedListener(new TabLayout.OnTabSelectedListener() {
             @Override
@@ -208,10 +223,8 @@ public class ProfileFragment extends Fragment {
                     public void onSuccess(String imageUrl) {
                         if (getContext() == null) return;
 
-                        // Обновляем URL аватара в объекте пользователя
                         currentUser.setAvatarUrl(imageUrl);
 
-                        // Сохраняем в Firebase
                         firebaseManager.updateUserProfile(currentUser, new FirebaseManager.AuthCallback() {
                             @Override
                             public void onSuccess(String message) {
@@ -221,7 +234,6 @@ public class ProfileFragment extends Fragment {
                                 btnSave.setEnabled(true);
                                 btnSave.setText("Сохранить");
 
-                                // Обновляем header в MainActivity
                                 if (getActivity() instanceof com.example.owntest.activities.MainActivity) {
                                     ((com.example.owntest.activities.MainActivity) getActivity()).refreshUserHeader();
                                 }
@@ -255,9 +267,13 @@ public class ProfileFragment extends Fragment {
         String uid = firebaseManager.getCurrentUser().getUid();
 
         if (currentTab == 0) {
+            // Созданные тесты
+            rvTests.setAdapter(createdTestsAdapter);
             loadMyTests(uid);
         } else {
-            loadCompletedTests(uid);
+            // Пройденные тесты
+            rvTests.setAdapter(completedTestsAdapter);
+            loadCompletedTestsWithStats(uid);
         }
     }
 
@@ -267,7 +283,10 @@ public class ProfileFragment extends Fragment {
             public void onSuccess(List<Test> tests) {
                 if (getContext() == null) return;
 
-                adapter.setTests(tests);
+                // Сортируем по дате (новые сверху)
+                Collections.sort(tests, (t1, t2) -> Long.compare(t2.getCreatedDate(), t1.getCreatedDate()));
+
+                createdTestsAdapter.setTests(tests);
                 updateEmptyState(tests.isEmpty());
             }
 
@@ -287,7 +306,10 @@ public class ProfileFragment extends Fragment {
             public void onSuccess(List<Test> tests) {
                 if (getContext() == null) return;
 
-                adapter.setTests(tests);
+                // Сортируем по дате (новые сверху)
+                Collections.sort(tests, (t1, t2) -> Long.compare(t2.getCreatedDate(), t1.getCreatedDate()));
+
+                createdTestsAdapter.setTests(tests);
                 updateEmptyState(tests.isEmpty());
             }
 
@@ -376,11 +398,9 @@ public class ProfileFragment extends Fragment {
                 .commit();
     }
 
-    // ========================= НОВЫЕ МЕТОДЫ =========================
-
     private void editTest(Test test) {
-        CreateTestFragment fragment = CreateTestFragment.newInstance(test.getTestId(), true);
-
+        // Открываем фрагмент редактирования теста
+        EditTestFragment fragment = EditTestFragment.newInstance(test.getTestId());
         getParentFragmentManager().beginTransaction()
                 .replace(R.id.fragment_container, fragment)
                 .addToBackStack(null)
@@ -388,18 +408,13 @@ public class ProfileFragment extends Fragment {
     }
 
     private void deleteTest(Test test) {
-        // Показываем диалог подтверждения уже в адаптере, просто выполняем удаление
         firebaseManager.deleteTest(test.getTestId(), new FirebaseManager.AuthCallback() {
             @Override
             public void onSuccess(String result) {
                 if (getContext() == null) return;
 
                 Toast.makeText(getContext(), "Тест успешно удален", Toast.LENGTH_SHORT).show();
-
-                // Удаляем тест из адаптера
-                adapter.removeTest(test);
-
-                // Перезагружаем список тестов
+                createdTestsAdapter.removeTest(test);
                 loadTests();
             }
 
@@ -412,11 +427,81 @@ public class ProfileFragment extends Fragment {
         });
     }
 
+    private void openNotifications() {
+        NotificationsFragment fragment = new NotificationsFragment();
+        getParentFragmentManager().beginTransaction()
+                .replace(R.id.fragment_container, fragment)
+                .addToBackStack(null)
+                .commit();
+    }
+
+    private void loadUnreadCount() {
+        if (firebaseManager.getCurrentUser() == null) return;
+        String uid = firebaseManager.getCurrentUser().getUid();
+
+        firebaseManager.getUnreadNotificationsCount(uid, new FirebaseManager.UnreadCountCallback() {
+            @Override
+            public void onSuccess(int count) {
+                if (getContext() == null) return;
+                updateNotificationBadge(count);
+            }
+
+            @Override
+            public void onFailure(String error) {
+                // Игнорируем
+            }
+        });
+    }
+
+    private void loadCompletedTestsWithStats(String uid) {
+        firebaseManager.getUserCompletedTestsWithCompletions(uid,
+                new FirebaseManager.TestWithCompletionListCallback() {
+                    @Override
+                    public void onSuccess(List<TestWithCompletion> tests) {
+                        if (getContext() == null) return;
+
+                        // Сортируем по дате (новые сверху)
+                        Collections.sort(tests, (t1, t2) ->
+                                Long.compare(t2.getTest().getCreatedDate(),
+                                        t1.getTest().getCreatedDate()));
+
+                        completedTestsAdapter.setTests(tests);
+                        updateEmptyState(tests.isEmpty());
+                    }
+
+                    @Override
+                    public void onFailure(String error) {
+                        if (getContext() == null) return;
+                        Toast.makeText(getContext(), "Ошибка: " + error, Toast.LENGTH_SHORT).show();
+                        updateEmptyState(true);
+                    }
+                });
+    }
+
+    private void openCompletedTestDetails(Test test, TestCompletion completion) {
+        // Открываем детали с возможностью оценить (если проверено и еще не оценено)
+        TestDetailsFragment fragment = TestDetailsFragment.newInstance(test.getTestId());
+        getParentFragmentManager().beginTransaction()
+                .replace(R.id.fragment_container, fragment)
+                .addToBackStack(null)
+                .commit();
+    }
+
+    private void updateNotificationBadge(int count) {
+        if (count > 0) {
+            tvNotificationBadge.setText(String.valueOf(count));
+            tvNotificationBadge.setVisibility(View.VISIBLE);
+        } else {
+            tvNotificationBadge.setVisibility(View.GONE);
+        }
+    }
+
     @Override
     public void onResume() {
         super.onResume();
         if (currentUser != null) {
             loadTests();
+            loadUnreadCount(); // Обновляем счетчик при возврате
         }
     }
 }

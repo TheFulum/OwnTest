@@ -1,11 +1,13 @@
 package com.example.owntest.fragments;
 
+import android.app.AlertDialog;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
 import android.widget.ProgressBar;
+import android.widget.RatingBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -17,8 +19,12 @@ import com.bumptech.glide.Glide;
 import com.example.owntest.R;
 import com.example.owntest.managers.FirebaseManager;
 import com.example.owntest.models.Test;
+import com.example.owntest.models.TestCompletion;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.card.MaterialCardView;
+
+import java.util.HashMap;
+import java.util.Map;
 
 public class TestDetailsFragment extends Fragment {
 
@@ -28,6 +34,7 @@ public class TestDetailsFragment extends Fragment {
     private MaterialButton btnStartTest;
     private ProgressBar progressBar;
     private MaterialCardView cardContent;
+    private TestCompletion userCompletion;
 
     private Test test;
     private String testId;
@@ -120,13 +127,21 @@ public class TestDetailsFragment extends Fragment {
                     .into(ivTestIcon);
         }
 
-        // Проверяем прошел ли пользователь этот тест
+        // Проверяем прохождение пользователя
         String userId = firebaseManager.getCurrentUser().getUid();
         firebaseManager.getTestCompletion(userId, testId, new FirebaseManager.CompletionCallback() {
             @Override
-            public void onSuccess(com.example.owntest.models.TestCompletion completion) {
-                // Тест уже пройден
-                btnStartTest.setText("Пройти повторно");
+            public void onSuccess(TestCompletion completion) {
+                userCompletion = completion;
+
+                if (completion.isChecked() && completion.getUserRating() == 0) {
+                    // Тест проверен, но не оценен
+                    btnStartTest.setText("Оценить тест");
+                    btnStartTest.setOnClickListener(v -> showRatingDialog());
+                } else {
+                    // Уже пройден или оценен
+                    btnStartTest.setText("Пройти повторно");
+                }
             }
 
             @Override
@@ -135,6 +150,70 @@ public class TestDetailsFragment extends Fragment {
                 btnStartTest.setText("Начать тест");
             }
         });
+    }
+
+    private void showRatingDialog() {
+        View dialogView = LayoutInflater.from(getContext())
+                .inflate(R.layout.dialog_test_rating, null);
+
+        TextView tvResult = dialogView.findViewById(R.id.tvResult);
+        RatingBar ratingBar = dialogView.findViewById(R.id.ratingBar);
+
+        double percentage = userCompletion.getPercentage();
+        tvResult.setText(String.format("Вы набрали %d из %d (%.1f%%) Оцените тест:",
+        userCompletion.getEarnedPoints(),
+                userCompletion.getMaxPoints(),
+                percentage));
+
+        AlertDialog dialog = new AlertDialog.Builder(requireContext())
+                .setView(dialogView)
+                .setPositiveButton("Отправить", null)
+                .setNegativeButton("Отмена", null)
+                .create();
+
+        dialog.setOnShowListener(d -> {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+                float rating = ratingBar.getRating();
+                if (rating == 0) {
+                    Toast.makeText(getContext(), "Поставьте оценку", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                saveRating(rating);
+                dialog.dismiss();
+
+                btnStartTest.setText("Пройти повторно");
+                btnStartTest.setOnClickListener(v2 -> startTest());
+            });
+        });
+
+        dialog.show();
+    }
+
+    private void startTest() {
+        if (test != null) {
+            TakeTestFragment fragment = TakeTestFragment.newInstance(testId);
+            getParentFragmentManager().beginTransaction()
+                    .replace(R.id.fragment_container, fragment)
+                    .addToBackStack(null)
+                    .commit();
+        }
+    }
+
+    private void saveRating(float rating) {
+        // Обновляем рейтинг теста
+        test.addCompletion(rating);
+
+        // Сохраняем рейтинг в прохождении
+        userCompletion.setUserRating((int) rating);
+
+        Map<String, Object> updates = new HashMap<>();
+        updates.put("tests/" + test.getTestId(), test);
+        updates.put("completions/" + userCompletion.getCompletionId() + "/userRating", (int) rating);
+
+        firebaseManager.getDatabase().updateChildren(updates)
+                .addOnSuccessListener(v -> {
+                    Toast.makeText(getContext(), "Спасибо за оценку!", Toast.LENGTH_SHORT).show();
+                });
     }
 
     private void setupListeners() {

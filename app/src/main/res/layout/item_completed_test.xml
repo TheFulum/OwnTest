@@ -32,57 +32,60 @@
             app:layout_constraintStart_toStartOf="@id/ivTestIcon"
             app:layout_constraintTop_toTopOf="@id/ivTestIcon" />
 
-        <!-- Средняя оценка (слева сверху) -->
+        <!-- Баллы (слева сверху) -->
         <TextView
-            android:id="@+id/tvAverageRating"
+            android:id="@+id/tvScore"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_margin="8dp"
             android:background="@drawable/bg_rating"
-            android:drawableStart="@drawable/ic_star"
+            android:drawableStart="@drawable/ic_check"
             android:drawablePadding="4dp"
             android:paddingHorizontal="8dp"
             android:paddingVertical="4dp"
-            android:text="0.0"
+            android:text="5 / 10"
             android:textColor="@color/white"
-            android:drawableTint="@color/warning"
-            android:textSize="15sp"
+            android:textSize="13sp"
             android:textStyle="bold"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
 
-        <!-- Количество прохождений (справа сверху) -->
+        <!-- Процент правильности (справа сверху) -->
         <TextView
-            android:id="@+id/tvCompletionsCount"
+            android:id="@+id/tvPercentage"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_margin="8dp"
             android:background="@drawable/bg_completions"
-            android:drawableStart="@drawable/ic_people"
+            android:drawableStart="@drawable/ic_percent"
             android:drawablePadding="4dp"
             android:paddingHorizontal="8dp"
             android:paddingVertical="4dp"
-            android:text="0"
+            android:text="50"
             android:textColor="@color/white"
-            android:drawableTint="@color/warning"
-            android:textSize="15sp"
+            android:drawableTint="@color/success"
+            android:textSize="13sp"
             android:textStyle="bold"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
 
-        <!-- Кнопка опций (только для создателя) -->
-        <ImageButton
-            android:id="@+id/btnOptions"
-            android:layout_width="32dp"
-            android:layout_height="32dp"
+        <!-- Статус проверки (центр сверху, опционально) -->
+        <TextView
+            android:id="@+id/tvStatus"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
             android:layout_margin="8dp"
-            android:background="@drawable/bg_options_button"
-            android:src="@drawable/ic_more_vert"
+            android:background="@drawable/bg_status_pending"
+            android:paddingHorizontal="12dp"
+            android:paddingVertical="6dp"
+            android:text="Ожидает проверки"
+            android:textColor="@color/primary"
+            android:textSize="13sp"
+            android:textStyle="bold"
             android:visibility="gone"
-            android:contentDescription="Опции теста"
-            app:tint="@color/white"
+            app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintBottom_toBottomOf="@id/ivTestIcon" />
+            app:layout_constraintTop_toBottomOf="@id/tvScore" />
 
         <!-- Автор (правый нижний угол картинки) -->
         <TextView
@@ -164,20 +167,19 @@
                 app:layout_constraintTop_toTopOf="parent"
                 app:layout_constraintBottom_toBottomOf="parent"/>
 
-            <!-- Количество вопросов (справа, под описанием) -->
+            <!-- Количество вопросов (справа) -->
             <TextView
                 android:id="@+id/tvQuestionCount"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Вопросов: 10"
+                android:text="10 вопросов"
                 android:textColor="@color/text_secondary"
                 android:textSize="12sp"
                 app:layout_constraintEnd_toEndOf="parent"
-                app:layout_constraintTop_toBottomOf="@id/tvTestDescription"/>
+                app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintBottom_toBottomOf="parent"/>
 
         </androidx.constraintlayout.widget.ConstraintLayout>
-
-
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 

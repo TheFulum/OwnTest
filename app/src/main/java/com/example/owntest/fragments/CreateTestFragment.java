@@ -9,6 +9,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
+import android.widget.CheckBox;
 import android.widget.ImageView;
 import android.widget.Spinner;
 import android.widget.Toast;
@@ -23,18 +24,17 @@ import com.bumptech.glide.Glide;
 import com.example.owntest.R;
 import com.example.owntest.managers.CloudinaryManager;
 import com.example.owntest.managers.FirebaseManager;
-import com.example.owntest.models.Test;
 import com.example.owntest.models.User;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.textfield.TextInputEditText;
-
-import java.util.ArrayList;
 
 public class CreateTestFragment extends Fragment {
 
     private ImageView ivTestIcon;
     private TextInputEditText etTitle, etDescription, etQuestionCount;
     private Spinner spinnerDifficulty, spinnerAnswerOptions;
+    private CheckBox cbManualCheck;
+    private CheckBox cbMultipleAttempts;
     private MaterialButton btnNext;
     private Uri selectedImageUri;
     private String uploadedImageUrl;
@@ -44,20 +44,6 @@ public class CreateTestFragment extends Fragment {
 
     private ActivityResultLauncher<Intent> imagePickerLauncher;
 
-    // Режим редактирования
-    private boolean isEditMode = false;
-    private String editingTestId = null;
-    private Test editingTest = null;
-
-    public static CreateTestFragment newInstance(String testId, boolean editMode) {
-        CreateTestFragment fragment = new CreateTestFragment();
-        Bundle args = new Bundle();
-        args.putString("testId", testId);
-        args.putBoolean("editMode", editMode);
-        fragment.setArguments(args);
-        return fragment;
-    }
-
     @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
@@ -66,21 +52,10 @@ public class CreateTestFragment extends Fragment {
         initViews(view);
         setupSpinners();
         setupImagePicker();
+        setupListeners();
 
         firebaseManager = FirebaseManager.getInstance();
         cloudinaryManager = CloudinaryManager.getInstance();
-
-        // Проверяем режим редактирования
-        if (getArguments() != null) {
-            isEditMode = getArguments().getBoolean("editMode", false);
-            editingTestId = getArguments().getString("testId");
-        }
-
-        if (isEditMode && editingTestId != null) {
-            loadTestForEditing();
-        }
-
-        setupListeners();
 
         return view;
     }
@@ -92,6 +67,8 @@ public class CreateTestFragment extends Fragment {
         etQuestionCount = view.findViewById(R.id.etQuestionCount);
         spinnerDifficulty = view.findViewById(R.id.spinnerDifficulty);
         spinnerAnswerOptions = view.findViewById(R.id.spinnerAnswerOptions);
+        cbManualCheck = view.findViewById(R.id.cbManualCheck); // Инициализация
+        cbMultipleAttempts = view.findViewById(R.id.cbMultipleAttempts);
         btnNext = view.findViewById(R.id.btnNext);
     }
 
@@ -113,66 +90,6 @@ public class CreateTestFragment extends Fragment {
         );
         answerAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinnerAnswerOptions.setAdapter(answerAdapter);
-    }
-
-    private void loadTestForEditing() {
-        btnNext.setEnabled(false);
-        btnNext.setText("Загрузка...");
-
-        firebaseManager.getTestById(editingTestId, new FirebaseManager.TestCallback() {
-            @Override
-            public void onSuccess(Test test) {
-                if (getContext() == null) return;
-
-                editingTest = test;
-                fillFormWithTestData(test);
-
-                btnNext.setEnabled(true);
-                btnNext.setText(isEditMode ? "Сохранить изменения" : "Далее");
-            }
-
-            @Override
-            public void onFailure(String error) {
-                if (getContext() == null) return;
-
-                Toast.makeText(getContext(), "Ошибка загрузки теста: " + error, Toast.LENGTH_SHORT).show();
-                requireActivity().getSupportFragmentManager().popBackStack();
-            }
-        });
-    }
-
-    private void fillFormWithTestData(Test test) {
-        etTitle.setText(test.getTitle());
-        etDescription.setText(test.getDescription());
-        etQuestionCount.setText(String.valueOf(test.getQuestionCount()));
-
-        // Устанавливаем сложность
-        String[] difficulties = {"Легкий", "Средний", "Тяжелый"};
-        for (int i = 0; i < difficulties.length; i++) {
-            if (difficulties[i].equals(test.getDifficulty())) {
-                spinnerDifficulty.setSelection(i);
-                break;
-            }
-        }
-
-        // Устанавливаем количество ответов
-        String answerCount = String.valueOf(test.getAnswerOptionsCount());
-        String[] answerOptions = {"2", "3", "4"};
-        for (int i = 0; i < answerOptions.length; i++) {
-            if (answerOptions[i].equals(answerCount)) {
-                spinnerAnswerOptions.setSelection(i);
-                break;
-            }
-        }
-
-        // Загружаем иконку
-        uploadedImageUrl = test.getIconUrl();
-        if (uploadedImageUrl != null && !uploadedImageUrl.isEmpty()) {
-            Glide.with(this)
-                    .load(uploadedImageUrl)
-                    .centerCrop()
-                    .into(ivTestIcon);
-        }
     }
 
     private void setupImagePicker() {
@@ -240,22 +157,16 @@ public class CreateTestFragment extends Fragment {
             return;
         }
 
-        String difficulty = spinnerDifficulty.getSelectedItem().toString();
-        int answerOptionsCount = Integer.parseInt(spinnerAnswerOptions.getSelectedItem().toString());
-
-        // Если в режиме редактирования и изображение не менялось
-        if (isEditMode && selectedImageUri == null && uploadedImageUrl != null) {
-            proceedWithExistingImage(title, description, uploadedImageUrl, difficulty, questionCount, answerOptionsCount);
-            return;
-        }
-
-        // Если нет изображения вообще
-        if (selectedImageUri == null && uploadedImageUrl == null) {
+        if (selectedImageUri == null) {
             Toast.makeText(requireContext(), "Выберите иконку теста", Toast.LENGTH_SHORT).show();
             return;
         }
 
-        // Загружаем новое изображение
+        String difficulty = spinnerDifficulty.getSelectedItem().toString();
+        int answerOptionsCount = Integer.parseInt(spinnerAnswerOptions.getSelectedItem().toString());
+        boolean isManualCheck = cbManualCheck.isChecked(); // Получаем значение
+        boolean allowMultipleAttempts = cbMultipleAttempts.isChecked();
+
         btnNext.setEnabled(false);
         btnNext.setText("Загрузка...");
 
@@ -266,10 +177,11 @@ public class CreateTestFragment extends Fragment {
                         if (getActivity() == null) return;
 
                         uploadedImageUrl = imageUrl;
-                        proceedWithExistingImage(title, description, imageUrl, difficulty, questionCount, answerOptionsCount);
+                        proceedToQuestions(title, description, imageUrl, difficulty,
+                                questionCount, answerOptionsCount, isManualCheck, allowMultipleAttempts);
 
                         btnNext.setEnabled(true);
-                        btnNext.setText(isEditMode ? "Сохранить изменения" : "Далее");
+                        btnNext.setText("Далее");
                     }
 
                     @Override
@@ -278,13 +190,15 @@ public class CreateTestFragment extends Fragment {
 
                         Toast.makeText(requireContext(), "Ошибка загрузки: " + error, Toast.LENGTH_SHORT).show();
                         btnNext.setEnabled(true);
-                        btnNext.setText(isEditMode ? "Сохранить изменения" : "Далее");
+                        btnNext.setText("Далее");
                     }
                 });
     }
 
-    private void proceedWithExistingImage(String title, String description, String iconUrl,
-                                          String difficulty, int questionCount, int answerOptionsCount) {
+    private void proceedToQuestions(String title, String description, String iconUrl,
+                                    String difficulty, int questionCount, int answerOptionsCount,
+                                    boolean isManualCheck, boolean allowMultipleAttempts) {
+
         String uid = firebaseManager.getCurrentUser().getUid();
 
         firebaseManager.getUserData(uid, new FirebaseManager.UserCallback() {
@@ -297,16 +211,10 @@ public class CreateTestFragment extends Fragment {
                 bundle.putString("difficulty", difficulty);
                 bundle.putInt("questionCount", questionCount);
                 bundle.putInt("answerOptionsCount", answerOptionsCount);
+                bundle.putBoolean("isManualCheck", isManualCheck); // Передаем
+                bundle.putBoolean("allowMultipleAttempts", allowMultipleAttempts);
                 bundle.putString("creatorId", uid);
                 bundle.putString("creatorNickname", user.getNickname());
-
-                // Передаем данные о режиме редактирования
-                if (isEditMode) {
-                    bundle.putBoolean("editMode", true);
-                    bundle.putString("testId", editingTestId);
-                    bundle.putSerializable("existingQuestions", editingTest.getQuestions() != null ?
-                            new ArrayList<>(editingTest.getQuestions()) : null);
-                }
 
                 CreateQuestionsFragment fragment = new CreateQuestionsFragment();
                 fragment.setArguments(bundle);
