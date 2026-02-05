@@ -110,7 +110,6 @@ public class FirebaseManager {
     // ========================= РЕГИСТРАЦИЯ С ПРОВЕРКОЙ УНИКАЛЬНОСТИ =========================
 
     public void registerUser(String email, String password, String nickname, String name, AuthCallback callback) {
-        // Проверяем уникальность nickname
         DatabaseReference nicknameRef = database.child("nicknames").child(nickname);
 
         nicknameRef.runTransaction(new Transaction.Handler() {
@@ -118,10 +117,8 @@ public class FirebaseManager {
             @Override
             public Transaction.Result doTransaction(@NonNull MutableData currentData) {
                 if (currentData.getValue() != null) {
-                    // Никнейм уже занят
                     return Transaction.abort();
                 }
-                // Временно резервируем никнейм
                 currentData.setValue(true);
                 return Transaction.success(currentData);
             }
@@ -133,13 +130,11 @@ public class FirebaseManager {
                     return;
                 }
 
-                // Создаем пользователя в Firebase Auth
                 auth.createUserWithEmailAndPassword(email, password)
                         .addOnSuccessListener(result -> {
                             String uid = result.getUser().getUid();
-                            User user = new User(uid, email, nickname, name);
+                            User user = new User(uid, email, nickname, name);  // registrationDate устанавливается автоматически
 
-                            // Multi-location update для атомарности
                             Map<String, Object> updates = new HashMap<>();
                             updates.put("users/" + uid, user);
                             updates.put("nicknames/" + nickname, uid);
@@ -147,15 +142,12 @@ public class FirebaseManager {
                             database.updateChildren(updates)
                                     .addOnSuccessListener(v -> callback.onSuccess(uid))
                                     .addOnFailureListener(e -> {
-                                        // Откатываем никнейм если не удалось создать юзера
                                         nicknameRef.removeValue();
                                         callback.onFailure(e.getMessage());
                                     });
                         })
                         .addOnFailureListener(e -> {
-                            // Освобождаем никнейм если Auth не создался
                             nicknameRef.removeValue();
-
                             String errorMsg = e.getMessage();
                             if (errorMsg != null && errorMsg.contains("email address is already in use")) {
                                 callback.onFailure("Email уже зарегистрирован");
@@ -174,7 +166,7 @@ public class FirebaseManager {
                 .addOnCompleteListener(task -> {
                     if (task.isSuccessful() && auth.getCurrentUser() != null) {
                         String uid = auth.getCurrentUser().getUid();
-                        updateUserDaysInApp(uid);
+                        // updateUserDaysInApp(uid);  ← УДАЛЕНО
                         callback.onSuccess(uid);
                     } else {
                         String error = task.getException() != null ?
@@ -205,26 +197,6 @@ public class FirebaseManager {
         auth.signOut();
     }
 
-    // ========================= РАБОТА С ПОЛЬЗОВАТЕЛЯМИ =========================
-
-    private void updateUserDaysInApp(String uid) {
-        database.child("users").child(uid).get().addOnSuccessListener(snapshot -> {
-            User user = snapshot.getValue(User.class);
-            if (user != null) {
-                boolean isNewDay = user.updateDaysInApp();
-
-                // Обновляем только если это новый день (оптимизация)
-                if (isNewDay) {
-                    database.child("users").child(uid).setValue(user);
-                } else {
-                    // Просто обновляем lastLoginDate
-                    database.child("users").child(uid).child("lastLoginDate")
-                            .setValue(System.currentTimeMillis());
-                }
-            }
-        });
-    }
-
     public void getUserData(String uid, UserCallback callback) {
         database.child("users").child(uid).get()
                 .addOnSuccessListener(snapshot -> {
@@ -245,9 +217,7 @@ public class FirebaseManager {
         }
 
         String uid = getCurrentUser().getUid();
-        String oldNickname = user.getNickname();
 
-        // Получаем старый никнейм чтобы обновить его в базе
         database.child("users").child(uid).get().addOnSuccessListener(snapshot -> {
             User oldUser = snapshot.getValue(User.class);
             if (oldUser == null) {
@@ -255,7 +225,16 @@ public class FirebaseManager {
                 return;
             }
 
+            user.setRegistrationDate(oldUser.getRegistrationDate());
+
             String currentNickname = oldUser.getNickname();
+
+            if (currentNickname.equals(user.getNickname())) {
+                database.child("users").child(uid).setValue(user)
+                        .addOnSuccessListener(aVoid -> callback.onSuccess("Профиль обновлен"))
+                        .addOnFailureListener(e -> callback.onFailure(e.getMessage()));
+                return;
+            }
 
             // Если никнейм не изменился - просто обновляем
             if (currentNickname.equals(user.getNickname())) {
@@ -735,7 +714,7 @@ public class FirebaseManager {
 
     // Пометить уведомление как прочитанное
     public void markNotificationAsRead(String userId, String notificationId, AuthCallback callback) {
-        database.child("notifications").child(userId).child(notificationId).child("isRead")
+        database.child("notifications").child(userId).child(notificationId).child("read")
                 .setValue(true)
                 .addOnSuccessListener(v -> callback.onSuccess("Прочитано"))
                 .addOnFailureListener(e -> callback.onFailure(e.getMessage()));
@@ -749,7 +728,7 @@ public class FirebaseManager {
                     public void onDataChange(@NonNull DataSnapshot snapshot) {
                         Map<String, Object> updates = new HashMap<>();
                         for (DataSnapshot child : snapshot.getChildren()) {
-                            updates.put(child.getKey() + "/isRead", true);
+                            updates.put(child.getKey() + "/read", true);
                         }
 
                         if (updates.isEmpty()) {

@@ -35,7 +35,7 @@ public class EditTestFragment extends Fragment {
     private TextInputEditText etTitle, etDescription;
     private Spinner spinnerDifficulty;
     private CheckBox cbMultipleAttempts;
-    private MaterialButton btnSave;
+    private MaterialButton btnSave, btnEditQuestions;
     private ProgressBar progressBar;
 
     private Uri selectedImageUri;
@@ -85,6 +85,7 @@ public class EditTestFragment extends Fragment {
         spinnerDifficulty = view.findViewById(R.id.spinnerDifficulty);
         cbMultipleAttempts = view.findViewById(R.id.cbMultipleAttempts);
         btnSave = view.findViewById(R.id.btnSave);
+        btnEditQuestions = view.findViewById(R.id.btnEditQuestions);
         progressBar = view.findViewById(R.id.progressBar);
     }
 
@@ -120,6 +121,7 @@ public class EditTestFragment extends Fragment {
         ivTestIcon.setOnClickListener(v -> openImagePicker());
         btnBack.setOnClickListener(v -> requireActivity().getSupportFragmentManager().popBackStack());
         btnSave.setOnClickListener(v -> validateAndSave());
+        btnEditQuestions.setOnClickListener(v -> openEditQuestions());
     }
 
     private void openImagePicker() {
@@ -257,5 +259,13 @@ public class EditTestFragment extends Fragment {
                 btnSave.setText("Сохранить");
             }
         });
+    }
+
+    private void openEditQuestions() {
+        EditQuestionsFragment fragment = EditQuestionsFragment.newInstance(testId);
+        getParentFragmentManager().beginTransaction()
+                .replace(R.id.fragment_container, fragment)
+                .addToBackStack(null)
+                .commit();
     }
 }
