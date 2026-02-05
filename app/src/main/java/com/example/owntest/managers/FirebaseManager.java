@@ -2,6 +2,7 @@ package com.example.owntest.managers;
 
 import androidx.annotation.NonNull;
 
+import com.example.owntest.models.Notification;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.database.DataSnapshot;
@@ -18,6 +19,7 @@ import com.example.owntest.models.Test;
 import com.example.owntest.models.TestCompletion;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -83,6 +85,24 @@ public class FirebaseManager {
 
     public interface CompletionCallback {
         void onSuccess(TestCompletion completion);
+
+        void onFailure(String error);
+    }
+
+    public interface NotificationListCallback {
+        void onSuccess(List<Notification> notifications);
+
+        void onFailure(String error);
+    }
+
+    public interface UnreadCountCallback {
+        void onSuccess(int count);
+
+        void onFailure(String error);
+    }
+
+    public interface TestWithCompletionListCallback {
+        void onSuccess(List<com.example.owntest.models.TestWithCompletion> tests);
 
         void onFailure(String error);
     }
@@ -354,6 +374,8 @@ public class FirebaseManager {
                                         }
                                         loadedCount[0]++;
                                         if (loadedCount[0] == totalTests) {
+                                            // Сортируем по дате создания (новые сверху)
+                                            Collections.sort(tests, (t1, t2) -> Long.compare(t2.getCreatedDate(), t1.getCreatedDate()));
                                             callback.onSuccess(tests);
                                         }
                                     });
@@ -394,6 +416,57 @@ public class FirebaseManager {
                                         if (loadedCount[0] == totalTests) {
                                             callback.onSuccess(tests);
                                         }
+                                    });
+                        }
+                    }
+
+                    @Override
+                    public void onCancelled(@NonNull DatabaseError error) {
+                        callback.onFailure(error.getMessage());
+                    }
+                });
+    }
+
+    public void getUserCompletedTestsWithCompletions(String uid, TestWithCompletionListCallback callback) {
+        database.child("userCompletions").child(uid)
+                .addListenerForSingleValueEvent(new ValueEventListener() {
+                    @Override
+                    public void onDataChange(@NonNull DataSnapshot snapshot) {
+                        List<com.example.owntest.models.TestWithCompletion> testsWithCompletions = new ArrayList<>();
+                        int totalTests = (int) snapshot.getChildrenCount();
+
+                        if (totalTests == 0) {
+                            callback.onSuccess(testsWithCompletions);
+                            return;
+                        }
+
+                        final int[] loadedCount = {0};
+
+                        for (DataSnapshot child : snapshot.getChildren()) {
+                            String testId = child.getKey();
+                            String completionId = child.getValue(String.class);
+
+                            // Загружаем тест
+                            database.child("tests").child(testId).get()
+                                    .addOnSuccessListener(testSnapshot -> {
+                                        Test test = testSnapshot.getValue(Test.class);
+
+                                        // Загружаем прохождение
+                                        database.child("completions").child(completionId).get()
+                                                .addOnSuccessListener(completionSnapshot -> {
+                                                    TestCompletion completion = completionSnapshot.getValue(TestCompletion.class);
+
+                                                    if (test != null && completion != null) {
+                                                        com.example.owntest.models.TestWithCompletion twc =
+                                                                new com.example.owntest.models.TestWithCompletion(test, completion);
+                                                        testsWithCompletions.add(twc);
+                                                    }
+
+                                                    loadedCount[0]++;
+                                                    if (loadedCount[0] == totalTests) {
+                                                        callback.onSuccess(testsWithCompletions);
+                                                    }
+                                                });
                                     });
                         }
                     }
@@ -450,7 +523,11 @@ public class FirebaseManager {
                 updates.put("tests/" + testId, test);
 
                 database.updateChildren(updates)
-                        .addOnSuccessListener(v -> callback.onSuccess(completionId))
+                        .addOnSuccessListener(v -> {
+                            // Создаём уведомление для создателя теста
+                            createTestCompletionNotification(completion, test);
+                            callback.onSuccess(completionId);
+                        })
                         .addOnFailureListener(e -> callback.onFailure(e.getMessage()));
             }
         });
@@ -606,5 +683,307 @@ public class FirebaseManager {
             }
         }).addOnFailureListener(e -> callback.onResult(false));
     }
+// ========================= УВЕДОМЛЕНИЯ =========================
 
+    public interface NotificationCallback {
+        void onSuccess(Notification notification);
+        void onFailure(String error);
+    }
+
+
+    // Создать уведомление
+    public void createNotification(Notification notification, AuthCallback callback) {
+        String notificationId = database.child("notifications").child(notification.getUserId()).push().getKey();
+        if (notificationId == null) {
+            callback.onFailure("Ошибка создания ID уведомления");
+            return;
+        }
+
+        notification.setNotificationId(notificationId);
+
+        database.child("notifications").child(notification.getUserId()).child(notificationId)
+                .setValue(notification)
+                .addOnSuccessListener(v -> callback.onSuccess(notificationId))
+                .addOnFailureListener(e -> callback.onFailure(e.getMessage()));
+    }
+
+    // Получить уведомления пользователя
+    public void getUserNotifications(String userId, NotificationListCallback callback) {
+        database.child("notifications").child(userId)
+                .orderByChild("createdDate")
+                .addListenerForSingleValueEvent(new ValueEventListener() {
+                    @Override
+                    public void onDataChange(@NonNull DataSnapshot snapshot) {
+                        List<Notification> notifications = new ArrayList<>();
+                        for (DataSnapshot child : snapshot.getChildren()) {
+                            Notification notification = child.getValue(Notification.class);
+                            if (notification != null) {
+                                notifications.add(notification);
+                            }
+                        }
+                        // Сортируем по дате (новые сначала)
+                        Collections.reverse(notifications);
+                        callback.onSuccess(notifications);
+                    }
+
+                    @Override
+                    public void onCancelled(@NonNull DatabaseError error) {
+                        callback.onFailure(error.getMessage());
+                    }
+                });
+    }
+
+    // Пометить уведомление как прочитанное
+    public void markNotificationAsRead(String userId, String notificationId, AuthCallback callback) {
+        database.child("notifications").child(userId).child(notificationId).child("isRead")
+                .setValue(true)
+                .addOnSuccessListener(v -> callback.onSuccess("Прочитано"))
+                .addOnFailureListener(e -> callback.onFailure(e.getMessage()));
+    }
+
+    // Пометить все уведомления как прочитанные
+    public void markAllNotificationsAsRead(String userId, AuthCallback callback) {
+        database.child("notifications").child(userId)
+                .addListenerForSingleValueEvent(new ValueEventListener() {
+                    @Override
+                    public void onDataChange(@NonNull DataSnapshot snapshot) {
+                        Map<String, Object> updates = new HashMap<>();
+                        for (DataSnapshot child : snapshot.getChildren()) {
+                            updates.put(child.getKey() + "/isRead", true);
+                        }
+
+                        if (updates.isEmpty()) {
+                            callback.onSuccess("Нет уведомлений");
+                            return;
+                        }
+
+                        database.child("notifications").child(userId).updateChildren(updates)
+                                .addOnSuccessListener(v -> callback.onSuccess("Все прочитаны"))
+                                .addOnFailureListener(e -> callback.onFailure(e.getMessage()));
+                    }
+
+                    @Override
+                    public void onCancelled(@NonNull DatabaseError error) {
+                        callback.onFailure(error.getMessage());
+                    }
+                });
+    }
+
+// ========================= ПРОВЕРКА ТЕСТА (РУЧНАЯ) =========================
+
+    // Обновить прохождение теста с баллами
+    public void updateCompletionWithPoints(String completionId, int earnedPoints, AuthCallback callback) {
+        database.child("completions").child(completionId).get()
+                .addOnSuccessListener(snapshot -> {
+                    TestCompletion completion = snapshot.getValue(TestCompletion.class);
+                    if (completion == null) {
+                        callback.onFailure("Прохождение не найдено");
+                        return;
+                    }
+
+                    completion.setEarnedPoints(earnedPoints);
+                    completion.setCheckStatus("CHECKED");
+
+                    // Пересчитываем процент на основе баллов
+                    if (completion.getMaxPoints() > 0) {
+                        double percentage = (double) earnedPoints / completion.getMaxPoints() * 100;
+                        completion.setPercentage(percentage);
+                    }
+
+                    database.child("completions").child(completionId).setValue(completion)
+                            .addOnSuccessListener(v -> {
+                                // Создаем уведомление юзеру что тест проверен
+                                createTestCheckedNotification(completion);
+                                callback.onSuccess("Тест проверен");
+                            })
+                            .addOnFailureListener(e -> callback.onFailure(e.getMessage()));
+                });
+    }
+
+    // Создать уведомление о проверке теста
+    private void createTestCheckedNotification(TestCompletion completion) {
+        // Получаем данные о тесте
+        getTestById(completion.getTestId(), new TestCallback() {
+            @Override
+            public void onSuccess(Test test) {
+                Notification notification = new Notification(
+                        null,
+                        completion.getUserId(),
+                        "TEST_CHECKED",
+                        test.getTestId(),
+                        test.getTitle(),
+                        completion.getCompletionId(),
+                        test.getCreatorNickname()
+                );
+
+                createNotification(notification, new AuthCallback() {
+                    @Override
+                    public void onSuccess(String userId) {
+                        // Уведомление создано
+                    }
+
+                    @Override
+                    public void onFailure(String error) {
+                        // Игнорируем ошибку
+                    }
+                });
+            }
+
+            @Override
+            public void onFailure(String error) {
+                // Игнорируем ошибку
+            }
+        });
+    }
+
+    // Создать уведомление о прохождении теста
+    private void createTestCompletionNotification(TestCompletion completion, Test test) {
+        // Получаем данные о юзере который прошёл тест
+        getUserData(completion.getUserId(), new UserCallback() {
+            @Override
+            public void onSuccess(User user) {
+                // Не создаём уведомление если юзер сам прошёл свой тест
+                if (completion.getUserId().equals(test.getCreatorId())) {
+                    return;
+                }
+
+                Notification notification = new Notification(
+                        null,
+                        test.getCreatorId(), // Уведомление для создателя
+                        "TEST_COMPLETED",
+                        test.getTestId(),
+                        test.getTitle(),
+                        completion.getCompletionId(),
+                        user.getNickname() // Кто прошёл тест
+                );
+
+                createNotification(notification, new AuthCallback() {
+                    @Override
+                    public void onSuccess(String userId) {
+                        // Уведомление создано
+                    }
+
+                    @Override
+                    public void onFailure(String error) {
+                        // Игнорируем ошибку
+                    }
+                });
+            }
+
+            @Override
+            public void onFailure(String error) {
+                // Игнорируем ошибку
+            }
+        });
+    }
+
+    // Получить тесты ожидающие проверки для создателя
+    public void getPendingTestsForCreator(String creatorId, TestListCallback callback) {
+        // Сначала получаем все тесты созданные юзером
+        getUserCreatedTests(creatorId, new TestListCallback() {
+            @Override
+            public void onSuccess(List<Test> tests) {
+                // Теперь для каждого теста проверяем есть ли ожидающие проверки
+                List<Test> pendingTests = new ArrayList<>();
+                final int[] checkedCount = {0};
+
+                if (tests.isEmpty()) {
+                    callback.onSuccess(pendingTests);
+                    return;
+                }
+
+                for (Test test : tests) {
+                    if (!test.isManualCheck()) {
+                        checkedCount[0]++;
+                        if (checkedCount[0] == tests.size()) {
+                            callback.onSuccess(pendingTests);
+                        }
+                        continue;
+                    }
+
+                    // Проверяем есть ли PENDING прохождения
+                    database.child("completions")
+                            .orderByChild("testId")
+                            .equalTo(test.getTestId())
+                            .addListenerForSingleValueEvent(new ValueEventListener() {
+                                @Override
+                                public void onDataChange(@NonNull DataSnapshot snapshot) {
+                                    boolean hasPending = false;
+                                    for (DataSnapshot child : snapshot.getChildren()) {
+                                        TestCompletion comp = child.getValue(TestCompletion.class);
+                                        if (comp != null && comp.isPending()) {
+                                            hasPending = true;
+                                            break;
+                                        }
+                                    }
+
+                                    if (hasPending) {
+                                        pendingTests.add(test);
+                                    }
+
+                                    checkedCount[0]++;
+                                    if (checkedCount[0] == tests.size()) {
+                                        callback.onSuccess(pendingTests);
+                                    }
+                                }
+
+                                @Override
+                                public void onCancelled(@NonNull DatabaseError error) {
+                                    checkedCount[0]++;
+                                    if (checkedCount[0] == tests.size()) {
+                                        callback.onSuccess(pendingTests);
+                                    }
+                                }
+                            });
+                }
+            }
+
+            @Override
+            public void onFailure(String error) {
+                callback.onFailure(error);
+            }
+        });
+    }
+
+    // ========================= УВЕДОМЛЕНИЯ =========================
+
+    public void sendTestCheckedNotification(String userId, String testId, String testTitle) {
+        String notificationId = database.child("notifications").child(userId).push().getKey();
+        if (notificationId == null) return;
+
+        Notification notification = new Notification(
+                notificationId,
+                userId,
+                "TEST_CHECKED",
+                testId,
+                testTitle,
+                null,
+                null
+        );
+
+        database.child("notifications").child(userId).child(notificationId)
+                .setValue(notification);
+    }
+
+    public void getUnreadNotificationsCount(String userId, UnreadCountCallback callback) {
+        database.child("notifications").child(userId)
+                .addListenerForSingleValueEvent(new ValueEventListener() {
+                    @Override
+                    public void onDataChange(@NonNull DataSnapshot snapshot) {
+                        int count = 0;
+                        for (DataSnapshot child : snapshot.getChildren()) {
+                            Notification notification = child.getValue(Notification.class);
+                            if (notification != null && !notification.isRead()) {
+                                count++;
+                            }
+                        }
+                        callback.onSuccess(count);
+                    }
+
+                    @Override
+                    public void onCancelled(@NonNull DatabaseError error) {
+                        callback.onFailure(error.getMessage());
+                    }
+                });
+    }
 }

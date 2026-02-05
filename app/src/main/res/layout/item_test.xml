@@ -89,19 +89,19 @@
             android:id="@+id/tvCreator"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_margin="8dp"
+            android:background="@drawable/bg_creator"
             android:drawableStart="@drawable/ic_person_small"
             android:drawablePadding="4dp"
+            android:drawableTint="@color/warning"
             android:paddingHorizontal="8dp"
             android:paddingVertical="4dp"
-            android:background="@drawable/bg_creator"
-            android:drawableTint="@color/warning"
             android:text="@author"
             android:textColor="@color/white"
             android:textSize="12sp"
             android:textStyle="bold"
-            app:layout_constraintEnd_toEndOf="@id/ivTestIcon"
             app:layout_constraintBottom_toBottomOf="@id/ivTestIcon"
-            android:layout_margin="8dp" />
+            app:layout_constraintStart_toStartOf="@+id/ivTestIcon" />
 
         <!-- Название теста -->
         <TextView
