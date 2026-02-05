@@ -168,7 +168,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Вы будете проверять ответы вручную и выставлять баллы"
+            android:text="Вы будете проверять ответы вручную и выставлять баллы.\nБудьте внимательны! С автоматической проверкой у вопросов может быть только тип 'Варианты ответа'."
             android:textSize="12sp"
             android:textColor="@color/text_secondary"
             android:layout_marginBottom="24dp" />

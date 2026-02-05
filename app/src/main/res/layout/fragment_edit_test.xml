@@ -148,24 +148,30 @@
                     android:layout_height="wrap_content"
                     android:text="Разрешить несколько попыток"
                     android:textColor="@color/text_primary"
-                    android:layout_marginBottom="8dp" />
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Примечание: Количество вопросов, тип проверки и сами вопросы редактировать нельзя"
-                    android:textSize="12sp"
-                    android:textColor="@color/text_secondary"
                     android:layout_marginBottom="16dp" />
+
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
+
+        <!-- Edit Questions Button -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnEditQuestions"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:text="Редактировать вопросы"
+            android:textSize="16sp"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            app:cornerRadius="12dp"
+            app:icon="@drawable/ic_edit"
+            app:iconGravity="textStart"
+            android:layout_marginBottom="12dp" />
 
         <!-- Save Button -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnSave"
             android:layout_width="match_parent"
             android:layout_height="56dp"
-            android:text="Сохранить"
+            android:text="Сохранить изменения"
             android:textSize="16sp"
             app:cornerRadius="12dp" />
     </LinearLayout>

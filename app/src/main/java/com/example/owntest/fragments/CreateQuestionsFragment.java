@@ -32,10 +32,10 @@ public class CreateQuestionsFragment extends Fragment {
 
     private TextView tvProgress;
     private TextInputEditText etQuestion, etQuestionDescription;
-    private Spinner spinnerQuestionType; // Новое поле
+    private Spinner spinnerQuestionType;
     private LinearLayout answersContainer;
-    private LinearLayout layoutMaxPoints; // Контейнер для баллов
-    private TextInputEditText etMaxPoints; // Новое поле
+    private LinearLayout layoutMaxPoints;
+    private TextInputEditText etMaxPoints;
     private MaterialButton btnNext, btnPrevious;
     private ProgressBar progressBar;
 
@@ -46,7 +46,7 @@ public class CreateQuestionsFragment extends Fragment {
     private String difficulty;
     private int totalQuestions;
     private int answerOptionsCount;
-    private boolean isManualCheck; // Новое поле
+    private boolean isManualCheck;
     private String creatorId;
     private String creatorNickname;
 
@@ -64,8 +64,19 @@ public class CreateQuestionsFragment extends Fragment {
 
         getDataFromBundle();
         initViews(view);
-        setupQuestionTypeSpinner();
         firebaseManager = FirebaseManager.getInstance();
+
+        setupQuestionTypeSpinner();
+
+        // Управление видимостью элементов в зависимости от режима проверки
+        if (isManualCheck) {
+            spinnerQuestionType.setVisibility(View.VISIBLE);
+            layoutMaxPoints.setVisibility(View.VISIBLE);
+        } else {
+            spinnerQuestionType.setVisibility(View.GONE);
+            layoutMaxPoints.setVisibility(View.GONE);
+            answersContainer.setVisibility(View.VISIBLE);
+        }
 
         questions = new ArrayList<>();
         for (int i = 0; i < totalQuestions; i++) {
@@ -104,12 +115,13 @@ public class CreateQuestionsFragment extends Fragment {
         btnNext = view.findViewById(R.id.btnNext);
         btnPrevious = view.findViewById(R.id.btnPrevious);
         progressBar = view.findViewById(R.id.progressBar);
-
-        // Показываем поле баллов только если ручная проверка
-        layoutMaxPoints.setVisibility(isManualCheck ? View.VISIBLE : View.GONE);
     }
 
     private void setupQuestionTypeSpinner() {
+        if (!isManualCheck) {
+            return;
+        }
+
         String[] types = {"Выбор ответа", "Текстовый ответ"};
         ArrayAdapter<String> adapter = new ArrayAdapter<>(
                 requireContext(),
@@ -122,7 +134,8 @@ public class CreateQuestionsFragment extends Fragment {
         spinnerQuestionType.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
-                updateAnswerFieldsVisibility(position == 0); // 0 = выбор, 1 = текст
+                boolean isChoice = position == 0;
+                updateAnswerFieldsVisibility(isChoice);
             }
 
             @Override
@@ -163,11 +176,14 @@ public class CreateQuestionsFragment extends Fragment {
     }
 
     private void updateAnswerFieldsVisibility(boolean isChoice) {
-        if (isChoice) {
-            answersContainer.setVisibility(View.VISIBLE);
-        } else {
-            answersContainer.setVisibility(View.GONE);
+        answersContainer.setVisibility(isChoice ? View.VISIBLE : View.GONE);
+    }
+
+    private boolean isTextTypeSelected() {
+        if (!isManualCheck) {
+            return false;
         }
+        return spinnerQuestionType.getSelectedItemPosition() == 1;
     }
 
     private void updateUI() {
@@ -175,46 +191,35 @@ public class CreateQuestionsFragment extends Fragment {
 
         Question question = questions.get(currentQuestionIndex);
 
-        if (question.getQuestionText() != null) {
-            etQuestion.setText(question.getQuestionText());
-        } else {
-            etQuestion.setText("");
+        etQuestion.setText(question.getQuestionText() != null ? question.getQuestionText() : "");
+        etQuestionDescription.setText(question.getQuestionDescription() != null ? question.getQuestionDescription() : "");
+
+        // Тип вопроса и видимость полей
+        boolean isTextQuestion = isTextTypeSelected();
+
+        if (isManualCheck) {
+            spinnerQuestionType.setSelection(isTextQuestion ? 1 : 0);
         }
 
-        if (question.getQuestionDescription() != null) {
-            etQuestionDescription.setText(question.getQuestionDescription());
-        } else {
-            etQuestionDescription.setText("");
-        }
+        updateAnswerFieldsVisibility(!isTextQuestion);
 
-        // Тип вопроса
-        if ("TEXT".equals(question.getQuestionType())) {
-            spinnerQuestionType.setSelection(1);
-        } else {
-            spinnerQuestionType.setSelection(0);
-        }
-
-        // Баллы (если ручная проверка)
+        // Баллы
         if (isManualCheck) {
             etMaxPoints.setText(question.getMaxPoints() > 0 ? String.valueOf(question.getMaxPoints()) : "1");
         }
 
-        // Загружаем ответы
+        // Ответы
         if (question.getAnswers() != null && !question.getAnswers().isEmpty()) {
-            for (int i = 0; i < question.getAnswers().size(); i++) {
+            for (int i = 0; i < Math.min(question.getAnswers().size(), answerFields.size()); i++) {
                 answerFields.get(i).setText(question.getAnswers().get(i).getAnswerText());
             }
 
-            if (question.getCorrectAnswerIndex() >= 0) {
+            if (question.getCorrectAnswerIndex() >= 0 && question.getCorrectAnswerIndex() < answerCheckboxes.size()) {
                 answerCheckboxes.get(question.getCorrectAnswerIndex()).setChecked(true);
             }
         } else {
-            for (TextInputEditText field : answerFields) {
-                field.setText("");
-            }
-            for (CheckBox cb : answerCheckboxes) {
-                cb.setChecked(false);
-            }
+            for (TextInputEditText field : answerFields) field.setText("");
+            for (CheckBox cb : answerCheckboxes) cb.setChecked(false);
         }
 
         btnPrevious.setVisibility(currentQuestionIndex > 0 ? View.VISIBLE : View.GONE);
@@ -251,9 +256,9 @@ public class CreateQuestionsFragment extends Fragment {
             return false;
         }
 
-        boolean isTextQuestion = spinnerQuestionType.getSelectedItemPosition() == 1;
+        boolean isTextQuestion = isTextTypeSelected();
 
-        // Для вопроса с выбором - проверяем ответы
+        // Проверка вариантов ответа (только для CHOICE)
         if (!isTextQuestion) {
             for (int i = 0; i < answerFields.size(); i++) {
                 String answerText = answerFields.get(i).getText().toString().trim();
@@ -271,14 +276,13 @@ public class CreateQuestionsFragment extends Fragment {
                     break;
                 }
             }
-
             if (!hasCorrectAnswer) {
                 Toast.makeText(getContext(), "Выберите правильный ответ", Toast.LENGTH_SHORT).show();
                 return false;
             }
         }
 
-        // Проверка баллов (если ручная проверка)
+        // Проверка баллов (только при ручной проверке)
         if (isManualCheck) {
             String pointsStr = etMaxPoints.getText().toString().trim();
             if (TextUtils.isEmpty(pointsStr)) {
@@ -303,7 +307,8 @@ public class CreateQuestionsFragment extends Fragment {
     private void saveCurrentQuestion() {
         String questionText = etQuestion.getText().toString().trim();
         String questionDesc = etQuestionDescription.getText().toString().trim();
-        boolean isTextQuestion = spinnerQuestionType.getSelectedItemPosition() == 1;
+
+        boolean isTextQuestion = isTextTypeSelected();
         String questionType = isTextQuestion ? "TEXT" : "CHOICE";
 
         int maxPoints = 1;
@@ -349,7 +354,7 @@ public class CreateQuestionsFragment extends Fragment {
         boolean allowMultipleAttempts = getArguments().getBoolean("allowMultipleAttempts", true);
 
         Test test = new Test(
-                testId,
+                null, // testId будет сгенерирован в createTest
                 title,
                 description,
                 iconUrl,
@@ -359,20 +364,17 @@ public class CreateQuestionsFragment extends Fragment {
                 creatorId,
                 creatorNickname,
                 isManualCheck,
-                allowMultipleAttempts  // <-- новый параметр
+                allowMultipleAttempts
         );
 
         test.setQuestions(questions);
 
         firebaseManager.createTest(test, new FirebaseManager.AuthCallback() {
             @Override
-            public void onSuccess(String testId) {
+            public void onSuccess(String generatedTestId) {
                 if (getContext() == null) return;
-
                 progressBar.setVisibility(View.GONE);
                 Toast.makeText(getContext(), "Тест успешно создан!", Toast.LENGTH_SHORT).show();
-
-                // Возвращаемся на главный
                 getParentFragmentManager().popBackStack();
                 getParentFragmentManager().popBackStack();
             }
@@ -380,7 +382,6 @@ public class CreateQuestionsFragment extends Fragment {
             @Override
             public void onFailure(String error) {
                 if (getContext() == null) return;
-
                 progressBar.setVisibility(View.GONE);
                 btnNext.setEnabled(true);
                 Toast.makeText(getContext(), "Ошибка создания теста: " + error, Toast.LENGTH_LONG).show();

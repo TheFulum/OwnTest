@@ -150,7 +150,7 @@ public class NotificationsFragment extends Fragment {
             @Override
             public void onSuccess(String message) {
                 Toast.makeText(getContext(), "Все уведомления прочитаны", Toast.LENGTH_SHORT).show();
-                loadNotifications(); // Перезагружаем
+                loadNotifications();
             }
 
             @Override

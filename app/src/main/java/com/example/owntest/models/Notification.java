@@ -2,12 +2,12 @@ package com.example.owntest.models;
 
 public class Notification {
     private String notificationId;
-    private String userId; // Кому уведомление
-    private String type; // "TEST_COMPLETED", "TEST_CHECKED"
+    private String userId;
+    private String type;
     private String testId;
     private String testTitle;
-    private String completionId; // ID прохождения
-    private String userName; // Кто прошел тест
+    private String completionId;
+    private String userName;
     private boolean isRead;
     private long createdDate;
 
