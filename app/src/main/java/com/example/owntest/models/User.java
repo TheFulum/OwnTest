@@ -21,14 +21,14 @@ public class User {
         this.avatarUrl = "";
     }
 
-    // Основной метод — дни в приложении
+    // дни в приложении
     public int getDaysInApp() {
         if (registrationDate == 0) {
             return 1;
         }
         long diffMillis = System.currentTimeMillis() - registrationDate;
         int days = (int) (diffMillis / (24 * 60 * 60 * 1000L)) + 1;
-        return Math.max(1, days); // Минимум 1 день
+        return Math.max(1, days);
     }
 
     // Геттеры

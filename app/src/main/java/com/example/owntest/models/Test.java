@@ -15,9 +15,8 @@ public class Test {
     private String creatorNickname;
     private long createdDate;
 
-    // Новое поле
-    private boolean isManualCheck; // Ручная проверка теста
-    private boolean allowMultipleAttempts; // Можно ли проходить несколько раз
+    private boolean isManualCheck;
+    private boolean allowMultipleAttempts;
 
     private double averageRating;
     private int completionsCount;
@@ -27,8 +26,8 @@ public class Test {
 
     public Test() {
         this.questions = new ArrayList<>();
-        this.isManualCheck = false; // По умолчанию автопроверка
-        this.allowMultipleAttempts = true; // По умолчанию можно проходить несколько раз
+        this.isManualCheck = false;
+        this.allowMultipleAttempts = true;
     }
 
     public Test(String testId, String title, String description, String iconUrl,

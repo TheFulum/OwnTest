@@ -66,12 +66,10 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
 
         setSupportActionBar(toolbar);
 
-        // Убираем title из тулбара
         if (getSupportActionBar() != null) {
             getSupportActionBar().setDisplayShowTitleEnabled(false);
         }
 
-        // Получаем View из header
         View headerView = navigationView.getHeaderView(0);
         ivUserAvatar = headerView.findViewById(R.id.ivUserAvatar);
         tvUserName = headerView.findViewById(R.id.tvUserName);
@@ -96,11 +94,9 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         firebaseManager.getUserData(uid, new FirebaseManager.UserCallback() {
             @Override
             public void onSuccess(User user) {
-                // Отображаем имя и никнейм
                 tvUserName.setText(user.getName());
                 tvUserEmail.setText("@" + user.getNickname());
 
-                // Загружаем аватар если есть
                 if (user.getAvatarUrl() != null && !user.getAvatarUrl().isEmpty()) {
                     Glide.with(MainActivity.this)
                             .load(user.getAvatarUrl())
@@ -164,7 +160,6 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         }
     }
 
-    // Метод для обновления header после изменения профиля
     public void refreshUserHeader() {
         loadUserDataIntoHeader();
     }

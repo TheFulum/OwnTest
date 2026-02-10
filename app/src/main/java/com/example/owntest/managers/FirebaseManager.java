@@ -133,7 +133,7 @@ public class FirebaseManager {
                 auth.createUserWithEmailAndPassword(email, password)
                         .addOnSuccessListener(result -> {
                             String uid = result.getUser().getUid();
-                            User user = new User(uid, email, nickname, name);  // registrationDate устанавливается автоматически
+                            User user = new User(uid, email, nickname, name);
 
                             Map<String, Object> updates = new HashMap<>();
                             updates.put("users/" + uid, user);
@@ -166,7 +166,6 @@ public class FirebaseManager {
                 .addOnCompleteListener(task -> {
                     if (task.isSuccessful() && auth.getCurrentUser() != null) {
                         String uid = auth.getCurrentUser().getUid();
-                        // updateUserDaysInApp(uid);  ← УДАЛЕНО
                         callback.onSuccess(uid);
                     } else {
                         String error = task.getException() != null ?
@@ -236,7 +235,6 @@ public class FirebaseManager {
                 return;
             }
 
-            // Если никнейм не изменился - просто обновляем
             if (currentNickname.equals(user.getNickname())) {
                 database.child("users").child(uid).setValue(user)
                         .addOnSuccessListener(aVoid -> callback.onSuccess("Профиль обновлен"))
@@ -244,7 +242,6 @@ public class FirebaseManager {
                 return;
             }
 
-            // Если никнейм изменился - проверяем уникальность
             DatabaseReference newNicknameRef = database.child("nicknames").child(user.getNickname());
             newNicknameRef.runTransaction(new Transaction.Handler() {
                 @NonNull
@@ -264,11 +261,10 @@ public class FirebaseManager {
                         return;
                     }
 
-                    // Обновляем данные пользователя и удаляем старый никнейм
                     Map<String, Object> updates = new HashMap<>();
                     updates.put("users/" + uid, user);
                     updates.put("nicknames/" + user.getNickname(), uid);
-                    updates.put("nicknames/" + currentNickname, null); // Удаляем старый
+                    updates.put("nicknames/" + currentNickname, null);
 
                     database.updateChildren(updates)
                             .addOnSuccessListener(v -> callback.onSuccess("Профиль обновлен"))
@@ -295,7 +291,6 @@ public class FirebaseManager {
         test.setTestId(testId);
         String uid = getCurrentUser().getUid();
 
-        // Сохраняем тест и добавляем его в список созданных тестов пользователя
         Map<String, Object> updates = new HashMap<>();
         updates.put("tests/" + testId, test);
         updates.put("userCreatedTests/" + uid + "/" + testId, true);
@@ -353,7 +348,6 @@ public class FirebaseManager {
                                         }
                                         loadedCount[0]++;
                                         if (loadedCount[0] == totalTests) {
-                                            // Сортируем по дате создания (новые сверху)
                                             Collections.sort(tests, (t1, t2) -> Long.compare(t2.getCreatedDate(), t1.getCreatedDate()));
                                             callback.onSuccess(tests);
                                         }
@@ -425,12 +419,10 @@ public class FirebaseManager {
                             String testId = child.getKey();
                             String completionId = child.getValue(String.class);
 
-                            // Загружаем тест
                             database.child("tests").child(testId).get()
                                     .addOnSuccessListener(testSnapshot -> {
                                         Test test = testSnapshot.getValue(Test.class);
 
-                                        // Загружаем прохождение
                                         database.child("completions").child(completionId).get()
                                                 .addOnSuccessListener(completionSnapshot -> {
                                                     TestCompletion completion = completionSnapshot.getValue(TestCompletion.class);
@@ -488,12 +480,9 @@ public class FirebaseManager {
         String uid = getCurrentUser().getUid();
         String testId = completion.getTestId();
 
-        // Обновляем статистику теста
         database.child("tests").child(testId).get().addOnSuccessListener(snapshot -> {
             Test test = snapshot.getValue(Test.class);
             if (test != null) {
-                // ← ВОТ ТУТ БЫЛ БАГ: было completion.getScore() (кол-во правильных ответов)
-                // Теперь берём getUserRating() — звёзды которые юзер поставил через ratingBar
                 test.addCompletion(completion.getUserRating());
 
                 Map<String, Object> updates = new HashMap<>();
@@ -503,7 +492,6 @@ public class FirebaseManager {
 
                 database.updateChildren(updates)
                         .addOnSuccessListener(v -> {
-                            // Создаём уведомление для создателя теста
                             createTestCompletionNotification(completion, test);
                             callback.onSuccess(completionId);
                         })
@@ -528,7 +516,6 @@ public class FirebaseManager {
             progress.setCompletionId(completionId);
         }
 
-        // Создаём финальную переменную для использования в лямбде
         final String finalCompletionId = completionId;
 
         String uid = getCurrentUser().getUid();
@@ -574,7 +561,6 @@ public class FirebaseManager {
 
         String uid = getCurrentUser().getUid();
 
-        // Сначала проверяем, является ли пользователь создателем теста
         database.child("tests").child(testId).get().addOnSuccessListener(snapshot -> {
             Test test = snapshot.getValue(Test.class);
             if (test == null) {
@@ -587,7 +573,6 @@ public class FirebaseManager {
                 return;
             }
 
-            // Удаляем тест и все связанные данные
             Map<String, Object> updates = new HashMap<>();
             updates.put("tests/" + testId, null);
             updates.put("userCreatedTests/" + uid + "/" + testId, null);
@@ -614,7 +599,6 @@ public class FirebaseManager {
             return;
         }
 
-        // Проверяем, является ли пользователь создателем
         database.child("tests").child(testId).get().addOnSuccessListener(snapshot -> {
             Test existingTest = snapshot.getValue(Test.class);
             if (existingTest == null) {
@@ -627,12 +611,10 @@ public class FirebaseManager {
                 return;
             }
 
-            // Сохраняем статистику при редактировании (не сбрасываем)
             test.setCompletionsCount(existingTest.getCompletionsCount());
             test.setTotalRatings(existingTest.getTotalRatings());
             test.setAverageRating(existingTest.getAverageRating());
 
-            // Обновляем тест
             database.child("tests").child(testId).setValue(test)
                     .addOnSuccessListener(v -> callback.onSuccess("Тест обновлен"))
                     .addOnFailureListener(e -> callback.onFailure(e.getMessage()));
@@ -670,7 +652,6 @@ public class FirebaseManager {
     }
 
 
-    // Создать уведомление
     public void createNotification(Notification notification, AuthCallback callback) {
         String notificationId = database.child("notifications").child(notification.getUserId()).push().getKey();
         if (notificationId == null) {
@@ -686,7 +667,6 @@ public class FirebaseManager {
                 .addOnFailureListener(e -> callback.onFailure(e.getMessage()));
     }
 
-    // Получить уведомления пользователя
     public void getUserNotifications(String userId, NotificationListCallback callback) {
         database.child("notifications").child(userId)
                 .orderByChild("createdDate")
@@ -700,7 +680,6 @@ public class FirebaseManager {
                                 notifications.add(notification);
                             }
                         }
-                        // Сортируем по дате (новые сначала)
                         Collections.reverse(notifications);
                         callback.onSuccess(notifications);
                     }
@@ -712,7 +691,6 @@ public class FirebaseManager {
                 });
     }
 
-    // Пометить уведомление как прочитанное
     public void markNotificationAsRead(String userId, String notificationId, AuthCallback callback) {
         database.child("notifications").child(userId).child(notificationId).child("read")
                 .setValue(true)
@@ -720,7 +698,6 @@ public class FirebaseManager {
                 .addOnFailureListener(e -> callback.onFailure(e.getMessage()));
     }
 
-    // Пометить все уведомления как прочитанные
     public void markAllNotificationsAsRead(String userId, AuthCallback callback) {
         database.child("notifications").child(userId)
                 .addListenerForSingleValueEvent(new ValueEventListener() {
@@ -750,7 +727,6 @@ public class FirebaseManager {
 
 // ========================= ПРОВЕРКА ТЕСТА (РУЧНАЯ) =========================
 
-    // Обновить прохождение теста с баллами
     public void updateCompletionWithPoints(String completionId, int earnedPoints, AuthCallback callback) {
         database.child("completions").child(completionId).get()
                 .addOnSuccessListener(snapshot -> {
@@ -763,7 +739,6 @@ public class FirebaseManager {
                     completion.setEarnedPoints(earnedPoints);
                     completion.setCheckStatus("CHECKED");
 
-                    // Пересчитываем процент на основе баллов
                     if (completion.getMaxPoints() > 0) {
                         double percentage = (double) earnedPoints / completion.getMaxPoints() * 100;
                         completion.setPercentage(percentage);
@@ -771,7 +746,6 @@ public class FirebaseManager {
 
                     database.child("completions").child(completionId).setValue(completion)
                             .addOnSuccessListener(v -> {
-                                // Создаем уведомление юзеру что тест проверен
                                 createTestCheckedNotification(completion);
                                 callback.onSuccess("Тест проверен");
                             })
@@ -779,9 +753,7 @@ public class FirebaseManager {
                 });
     }
 
-    // Создать уведомление о проверке теста
     private void createTestCheckedNotification(TestCompletion completion) {
-        // Получаем данные о тесте
         getTestById(completion.getTestId(), new TestCallback() {
             @Override
             public void onSuccess(Test test) {
@@ -798,71 +770,59 @@ public class FirebaseManager {
                 createNotification(notification, new AuthCallback() {
                     @Override
                     public void onSuccess(String userId) {
-                        // Уведомление создано
                     }
 
                     @Override
                     public void onFailure(String error) {
-                        // Игнорируем ошибку
                     }
                 });
             }
 
             @Override
             public void onFailure(String error) {
-                // Игнорируем ошибку
             }
         });
     }
 
-    // Создать уведомление о прохождении теста
     private void createTestCompletionNotification(TestCompletion completion, Test test) {
-        // Получаем данные о юзере который прошёл тест
         getUserData(completion.getUserId(), new UserCallback() {
             @Override
             public void onSuccess(User user) {
-                // Не создаём уведомление если юзер сам прошёл свой тест
                 if (completion.getUserId().equals(test.getCreatorId())) {
                     return;
                 }
 
                 Notification notification = new Notification(
                         null,
-                        test.getCreatorId(), // Уведомление для создателя
+                        test.getCreatorId(),
                         "TEST_COMPLETED",
                         test.getTestId(),
                         test.getTitle(),
                         completion.getCompletionId(),
-                        user.getNickname() // Кто прошёл тест
+                        user.getNickname()
                 );
 
                 createNotification(notification, new AuthCallback() {
                     @Override
                     public void onSuccess(String userId) {
-                        // Уведомление создано
                     }
 
                     @Override
                     public void onFailure(String error) {
-                        // Игнорируем ошибку
                     }
                 });
             }
 
             @Override
             public void onFailure(String error) {
-                // Игнорируем ошибку
             }
         });
     }
 
-    // Получить тесты ожидающие проверки для создателя
     public void getPendingTestsForCreator(String creatorId, TestListCallback callback) {
-        // Сначала получаем все тесты созданные юзером
         getUserCreatedTests(creatorId, new TestListCallback() {
             @Override
             public void onSuccess(List<Test> tests) {
-                // Теперь для каждого теста проверяем есть ли ожидающие проверки
                 List<Test> pendingTests = new ArrayList<>();
                 final int[] checkedCount = {0};
 
@@ -880,7 +840,6 @@ public class FirebaseManager {
                         continue;
                     }
 
-                    // Проверяем есть ли PENDING прохождения
                     database.child("completions")
                             .orderByChild("testId")
                             .equalTo(test.getTestId())

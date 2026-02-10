@@ -81,15 +81,12 @@ public class HomeFragment extends Fragment {
 
             @Override
             public void onEditClick(Test test) {
-                // Этот метод не будет вызываться в HomeFragment
-                // так как showCreatorOptions = false
             }
 
             @Override
             public void onDeleteClick(Test test) {
-                // Этот метод не будет вызываться в HomeFragment
             }
-        }, false); // false = не показывать опции создателя
+        }, false);
 
         GridLayoutManager layoutManager = new GridLayoutManager(getContext(), 2);
         rvTests.setLayoutManager(layoutManager);
@@ -100,7 +97,6 @@ public class HomeFragment extends Fragment {
             public void onScrolled(@NonNull RecyclerView recyclerView, int dx, int dy) {
                 super.onScrolled(recyclerView, dx, dy);
                 if (!recyclerView.canScrollVertically(1)) {
-                    // TODO: Пагинация
                 }
             }
         });

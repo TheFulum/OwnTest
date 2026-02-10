@@ -354,7 +354,7 @@ public class CreateQuestionsFragment extends Fragment {
         boolean allowMultipleAttempts = getArguments().getBoolean("allowMultipleAttempts", true);
 
         Test test = new Test(
-                null, // testId будет сгенерирован в createTest
+                null,
                 title,
                 description,
                 iconUrl,

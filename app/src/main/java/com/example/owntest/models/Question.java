@@ -10,14 +10,13 @@ public class Question {
     private List<Answer> answers;
     private int correctAnswerIndex;
 
-    // Новые поля
-    private String questionType; // "CHOICE" или "TEXT"
-    private int maxPoints; // Макс баллы за вопрос (для ручной проверки)
+    private String questionType;
+    private int maxPoints;
 
     public Question() {
         this.answers = new ArrayList<>();
-        this.questionType = "CHOICE"; // По умолчанию выбор
-        this.maxPoints = 1; // По умолчанию 1 балл
+        this.questionType = "CHOICE";
+        this.maxPoints = 1;
     }
 
     public Question(String questionId, String questionText, String questionDescription,

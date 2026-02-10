@@ -501,7 +501,7 @@ public class ProfileFragment extends Fragment {
         super.onResume();
         if (currentUser != null) {
             loadTests();
-            loadUnreadCount(); // Обновляем счетчик при возврате
+            loadUnreadCount();
         }
     }
 }

@@ -67,7 +67,7 @@ public class CreateTestFragment extends Fragment {
         etQuestionCount = view.findViewById(R.id.etQuestionCount);
         spinnerDifficulty = view.findViewById(R.id.spinnerDifficulty);
         spinnerAnswerOptions = view.findViewById(R.id.spinnerAnswerOptions);
-        cbManualCheck = view.findViewById(R.id.cbManualCheck); // Инициализация
+        cbManualCheck = view.findViewById(R.id.cbManualCheck);
         cbMultipleAttempts = view.findViewById(R.id.cbMultipleAttempts);
         btnNext = view.findViewById(R.id.btnNext);
     }
@@ -164,7 +164,7 @@ public class CreateTestFragment extends Fragment {
 
         String difficulty = spinnerDifficulty.getSelectedItem().toString();
         int answerOptionsCount = Integer.parseInt(spinnerAnswerOptions.getSelectedItem().toString());
-        boolean isManualCheck = cbManualCheck.isChecked(); // Получаем значение
+        boolean isManualCheck = cbManualCheck.isChecked();
         boolean allowMultipleAttempts = cbMultipleAttempts.isChecked();
 
         btnNext.setEnabled(false);
@@ -211,7 +211,7 @@ public class CreateTestFragment extends Fragment {
                 bundle.putString("difficulty", difficulty);
                 bundle.putInt("questionCount", questionCount);
                 bundle.putInt("answerOptionsCount", answerOptionsCount);
-                bundle.putBoolean("isManualCheck", isManualCheck); // Передаем
+                bundle.putBoolean("isManualCheck", isManualCheck);
                 bundle.putBoolean("allowMultipleAttempts", allowMultipleAttempts);
                 bundle.putString("creatorId", uid);
                 bundle.putString("creatorNickname", user.getNickname());

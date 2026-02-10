@@ -197,7 +197,6 @@ public class CheckTestFragment extends Fragment {
                 tvCorrectAnswer.setText("Правильный ответ: " + correctAnswerText);
                 tvCorrectAnswer.setVisibility(View.VISIBLE);
 
-                // Для choice вопросов тоже можем дать баллы
                 layoutPoints.setVisibility(View.VISIBLE);
             }
 
@@ -269,7 +268,6 @@ public class CheckTestFragment extends Fragment {
                         progressBar.setVisibility(View.GONE);
                         Toast.makeText(getContext(), "Проверка сохранена!", Toast.LENGTH_SHORT).show();
 
-                        // Отправляем уведомление только если проверяющий НЕ является тем, кто проходил тест
                         String currentUserId = firebaseManager.getCurrentUser().getUid();
                         if (!currentUserId.equals(completion.getUserId())) {
                             firebaseManager.sendTestCheckedNotification(
@@ -279,7 +277,6 @@ public class CheckTestFragment extends Fragment {
                             );
                         }
 
-                        // Возвращаемся назад
                         requireActivity().getSupportFragmentManager().popBackStack();
                     }
 

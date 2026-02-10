@@ -11,13 +11,12 @@ public class TestCompletion {
     private int totalQuestions;
     private double percentage;
     private long completedDate;
-    private Map<String, Integer> userAnswers; // questionId -> answerIndex (для choice)
+    private Map<String, Integer> userAnswers;
 
-    // Новые поля
-    private Map<String, String> textAnswers; // questionId -> text (для текстовых ответов)
-    private String checkStatus; // "AUTO", "PENDING", "CHECKED"
-    private int earnedPoints; // Баллы выставленные создателем (для ручной проверки)
-    private int maxPoints; // Макс возможные баллы
+    private Map<String, String> textAnswers;
+    private String checkStatus;
+    private int earnedPoints;
+    private int maxPoints;
 
     private boolean isCompleted;
     private int currentQuestionIndex;

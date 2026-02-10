@@ -40,7 +40,6 @@ public class TestDetailsFragment extends Fragment {
     private String testId;
     private FirebaseManager firebaseManager;
 
-    // Флаги состояния
     private boolean alreadyCompleted = false;
     private boolean needsRating = false;
 

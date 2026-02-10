@@ -91,14 +91,12 @@ public class NotificationAdapter extends RecyclerView.Adapter<NotificationAdapte
                 tvMessage.setText("Ваш тест \"" + notification.getTestTitle() + "\" проверен");
             }
 
-            // Время
             SimpleDateFormat sdf = new SimpleDateFormat("dd MMM, HH:mm", Locale.getDefault());
             tvTime.setText(sdf.format(new Date(notification.getCreatedDate())));
 
             // Индикатор непрочитанного
             unreadIndicator.setVisibility(notification.isRead() ? View.GONE : View.VISIBLE);
 
-            // Фон для непрочитанных
             if (!notification.isRead()) {
                 itemView.setBackgroundResource(R.drawable.bg_notification_unread);
             } else {
